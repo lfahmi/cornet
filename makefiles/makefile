@@ -5,6 +5,8 @@ SRCDIR=$(BASEDIR)src/# Source files directory
 OBJDIR=$(BASEDIR)obj/# Object files directory
 INCDIR=$(BASEDIR)include/# Header files directory
 BUILDDIR=$(BASEDIR)build/# Output directory
+INSTALLDIR=/usr/local/lib
+INSTALLHDIR=/usr/local/include
 OBJDIRS=$(patsubst $(SRCDIR)%,$(OBJDIR)%,${shell find $(SRCDIR) -type d -print})# Directory tree of for object files, based on source files
 REQDIRS+=$(OBJDIRS)# Add object directory tree to required directory
 REQDIRS+=$(BUILDDIR)# Add build directory tree to required directory
@@ -36,6 +38,12 @@ prepare:$(REQDIRS)
 
 $(REQDIRS):
 	mkdir $@
+
+.PHONY:install
+
+install:$(BUILDDIR)$(LIBNAME)
+	cp -fRp $(INCDIR)* $(INSTALLHDIR)
+	cp -fp $(BUILDDIR)$(LIBNAME) $(INSTALLDIR)
 
 .PHONY:clean
 

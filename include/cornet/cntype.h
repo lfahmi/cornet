@@ -34,7 +34,7 @@ typedef struct
         the funcptr. but in such emergency case, here is a bool
         to prevent action destructor to call args destructor to
         prevent crash by double free. */
-    bool argsDestructed;
+    bool dontCallDestructor;
     bool cancel;
 } cn_action;
 

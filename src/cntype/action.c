@@ -14,7 +14,7 @@ cn_action *cn_makeAction(cn_voidFunc funcptr, void *args, cn_syncFuncPTR argsDes
     // and cancelation status pointer
     result->funcptr = funcptr;
     result->argsDestructor = argsDestructor;
-    result->argsDestructed = false;
+    result->dontCallDestructor = false;
     result->args = args;
     result->cancel = false;
     // cn_action creation has done, return result.
@@ -31,7 +31,7 @@ int cn_desAction(cn_action *action)
     {
         // If argument objects destructor is not null and args is not null
         // then execute argument objects destructor.
-        if(action->argsDestructor != NULL && !action->argsDestructed && action->args != NULL)
+        if(!action->dontCallDestructor && action->argsDestructor != NULL && action->args != NULL)
         {
             action->argsDestructor(action->args);
         }

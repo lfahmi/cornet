@@ -3,6 +3,7 @@
 cn_queue *cn_makeQue(uint16_t perSize)
 {
     cn_queue *result = malloc(sizeof(cn_queue));
+    pthread_mutex_init(&result->key, NULL);
     result->cnt = 0;
     result->perSize = 0;
     result->frontNode = NULL;
@@ -41,11 +42,14 @@ int cn_queEn(cn_queue *tque, void *item)
 {
     if(tque == NULL || item == NULL) {return -1;}
     struct cn_queueNode *tmpNode = malloc(sizeof(struct cn_queueNode));
+    if(tmpNode == NULL){return -1;}
+    int lastCnt = tque->cnt;
     tmpNode->item = item;
     tmpNode->next = NULL;
     pthread_mutex_lock(&tque->key);
     if(tque->rearNode == NULL || tque->frontNode == NULL)
     {
+        tque->cnt = 0;
         tque->rearNode = tmpNode;
         tque->frontNode = tmpNode;
     }
@@ -54,7 +58,8 @@ int cn_queEn(cn_queue *tque, void *item)
         tque->rearNode->next = tmpNode;
         tque->rearNode = tmpNode;
     }
-    tque->cnt++;
+    tque->cnt = tque->cnt + 1;
+    if(tque->cnt == lastCnt){pthread_mutex_unlock(&tque->key);return -1;}
     pthread_mutex_unlock(&tque->key);
     return 0;
 }
@@ -62,6 +67,7 @@ int cn_queEn(cn_queue *tque, void *item)
 void *cn_queDe(cn_queue *tque)
 {
     if(tque == NULL){return NULL;}
+    if(tque->cnt < 1){return NULL;}
     if(tque->frontNode == NULL){return NULL;}
     struct cn_queueNode *tmpNode = tque->frontNode;
     void *result = tmpNode->item;

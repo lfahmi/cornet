@@ -10,14 +10,27 @@
 #include "cornet/cntype.h"
 #include "cornet/cnnum.h"
 
+#define CN_SEC_IN_NSEC 1000000000
+
+#define CN_100_MILISECONDS
+
 /* Scheduler Section */
 
 /*  cn_sched type, scheduler object type. */
 typedef struct
 {
-    cn_action action;
-    struct timespec nextExecution, interval;
+    cn_action *action;
+    struct timespec lastExecution;
+    struct timespec nextExecution;
+    struct timespec interval;
 } cn_sched;
+
+#include "cornet/cndebug.h"
+#define CN_DEBUG_MODE_CNSCHED_H_DEEP 0
+
+extern int cn_timespecAdd(struct timespec *dest, struct timespec *addition);
+
+extern int cn_timespecComp(struct timespec *tsA, struct timespec *tsB);
 
 /*  give control to other thread, wait for miliseconds then do action */
 #ifdef WIN32
@@ -31,12 +44,12 @@ extern void cn_sleep(int milisecond);  // cross-platform sleep function
 
 /*  give control to other threads wait for miliseconds
     then do action */
-extern int cn_doDelayedAction(cn_action *action, int miliseconds);
+extern int cn_doDelayedAction(cn_action *action, int CN_100_MILISECONDS timeout);
 
 /*  make a schedule object. timeout is wait time before first action execution.
     interval is time between the next execution. keep execute every interval
     until schedule is removed */
-extern cn_sched *cn_makeSched(cn_action, int timeout, int interval);
+extern cn_sched *cn_makeSched(cn_action *action, int CN_100_MILISECONDS timeout, int CN_100_MILISECONDS interval);
 
 extern int cn_desSched(cn_sched *sched);
 
