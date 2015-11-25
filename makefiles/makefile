@@ -29,8 +29,8 @@ $(BUILDDIR)$(LIBNAME):$(OBJS)
 	$(CC) $(LDFLAGS) $(OFLAGS) $(BUILDDIR)$(LIBNAME) $(OBJS)
 
 # compile sources to object files
-$(OBJS):$(OBJDIR)%.o:$(SRCDIR)%.c
-	$(CC) $(CFLAGS) $(OFLAGS) $@ $^
+$(OBJS):$(OBJDIR)%.o:$(SRCDIR)%.c $(DEPS)
+	$(CC) $(CFLAGS) $(OFLAGS) $@ $<
 
 .PHONY:prepare
 

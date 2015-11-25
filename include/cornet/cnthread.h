@@ -23,6 +23,7 @@ typedef struct
 
 typedef struct
 {
+    const char *refname;
     pthread_t thread_t;
     bool gotThplWork;
     bool running;

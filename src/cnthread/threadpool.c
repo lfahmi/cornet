@@ -23,9 +23,16 @@ void *asyncThread(void *args)
             cn_desAction(arguments->callback);
         }
     }
-    free(args);
+    free(arguments);
     return NULL;
 }
+
+
+struct EndTryAttemptArgs
+{
+    bool cancel;
+    bool *trigg;
+};
 
 // This will be executed on new thread to end some try attempt
 // by setting the arg to false and free it.
@@ -34,9 +41,12 @@ void *EndTryAttempt(void *args)
     #ifdef CN_DEBUG_MODE
     cn_log("cnthread DEBUG cn_thplDecWorker end flushing start phase %d\n");
     #endif // CN_DEBUG_MODE
-    bool *keepFlushing = args;
-    *keepFlushing = false;
-    free(keepFlushing);
+    struct EndTryAttemptArgs *targs = args;
+    if(targs->cancel == false)
+    {
+        targs->trigg = false;
+    }
+    free(targs);
     #ifdef CN_DEBUG_MODE
     cn_log("cnthread DEBUG cn_thplDecWorker end flushing end phase %d\n");
     #endif // CN_DEBUG_MODE
@@ -230,17 +240,16 @@ int cn_thplIncWorker(cn_threadpool *thpl, int incCnt)
 // Increase the number of thread from a threadpool by incCnt, wait until increment done.
 int cn_thplIncWorkerAsync(cn_threadpool *thpl, int incCnt, cn_action *callback)
 {
-    struct ThplIncWorkerTrueWorkArgs *args = malloc(sizeof(struct ThplIncWorkerTrueWorkArgs));
+    struct ThplIncWorkerTrueWorkArgs *incWorkArgs = malloc(sizeof(struct ThplIncWorkerTrueWorkArgs));
+    if(incWorkArgs == NULL){return -1;}
+    incWorkArgs->thpl = thpl;
+    incWorkArgs->incCnt = incCnt;
+    struct asyncThreadArgs *args = malloc(sizeof(struct asyncThreadArgs));
     if(args == NULL){return -1;}
-    args->thpl = thpl;
-    args->incCnt = incCnt;
-    struct asyncThreadArgs *args2 = malloc(sizeof(struct asyncThreadArgs));
-    if(args2 == NULL){return -1;}
-    args2->syncTask = ThplIncWorkerTrueWork;
-    args2->args = args;
-    args2->callback = callback;
-    pthread_create(&args2->tid, NULL, asyncThread, (void *)args2);
-    return 0;
+    args->syncTask = ThplIncWorkerTrueWork;
+    args->args = incWorkArgs;
+    args->callback = callback;
+    return cn_doDelayedAction(cn_makeAction(asyncThread, (void *)args, NULL), 0);
 }
 
 // argument warper for ThplDecWorkerTrueWork
@@ -300,7 +309,10 @@ int ThplDecWorkerTrueWork(void *args)
     bool *keepFlushing = malloc(sizeof(bool));
     if(keepFlushing == NULL){return -1;}
     *keepFlushing = true;
-    cn_doDelayedAction(cn_makeAction(EndTryAttempt, keepFlushing, NULL), 3000);
+    struct EndTryAttemptArgs *endTryArgs = malloc(sizeof(struct EndTryAttemptArgs));
+    endTryArgs->trigg = keepFlushing;
+    endTryArgs->cancel = false;
+    cn_doDelayedAction(cn_makeAction(EndTryAttempt, endTryArgs, NULL), 30);
     int nextThreadsCount = thpl->threads->cnt - decCnt;
     if(nextThreadsCount < 0){nextThreadsCount = 0;}
     int tryAttempt = 0;
@@ -325,6 +337,8 @@ int ThplDecWorkerTrueWork(void *args)
             break;
         }
     }
+    if(*keepFlushing == true){endTryArgs->cancel = true;}
+    free(keepFlushing);
     #ifdef CN_DEBUG_MODE
     cn_log("cnthread DEBUG cn_thplDecWorker phase %d\n", debug++);
     #endif // CN_DEBUG_MODE
@@ -360,7 +374,7 @@ int cn_thplDecWorkerAsync(cn_threadpool *thpl, int decCnt, cn_action *callback)
     args->syncTask = ThplDecWorkerTrueWork;
     args->args = decWorkerArgs;
     args->callback = callback;
-    return pthread_create(&args->tid, NULL, asyncThread, (void*)args);
+    return cn_doDelayedAction(cn_makeAction(asyncThread, (void *)args, NULL), 0);
 }
 
 
@@ -427,7 +441,7 @@ int cn_desThplAsync(cn_threadpool *thpl, cn_syncFuncPTR itemDestructor, cn_actio
     args->syncTask = desThplTrueWork;
     args->args = targs;
     args->callback = callback;
-    return pthread_create(&args->tid, NULL, asyncThread, (void *)args);
+    return cn_doDelayedAction(cn_makeAction(asyncThread, (void *)args, NULL), 0);
 }
 
 

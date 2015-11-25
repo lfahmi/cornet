@@ -16,9 +16,12 @@
 
 /* Scheduler Section */
 
-/*  cn_sched type, scheduler object type. */
+/**
+    * cn_sched definition, scheduler object type
+    */
 typedef struct
 {
+    const const char *refname;
     cn_action *action;
     struct timespec lastExecution;
     struct timespec nextExecution;
@@ -26,13 +29,27 @@ typedef struct
 } cn_sched;
 
 #include "cornet/cndebug.h"
-#define CN_DEBUG_MODE_CNSCHED_H_DEEP 0
 
+#undef CN_DEBUG_MODE_CNSCHED_H_LVL
+#define CN_DEBUG_MODE_CNSCHED_H_LVL 2
+#undef CN_DEBUG_MODE_FREE
+#define CN_DEBUG_MODE_FREE 1
+
+/**
+    * Add timespec dest by timespec addition
+    * @param dest the timespec that will be increased
+    * @param addition the timespec value to be added
+    */
 extern int cn_timespecAdd(struct timespec *dest, struct timespec *addition);
 
+/**
+    * Compare tsA by tsB, return value int represent tsA is greater, less, or equal  than tsB
+    * @param tsA comparison object.
+    * @param tsB comparison object.
+    */
 extern int cn_timespecComp(struct timespec *tsA, struct timespec *tsB);
 
-/*  give control to other thread, wait for miliseconds then do action */
+/*  used by cn_sleep to generate crossplatform compability. */
 #ifdef WIN32
 #include <windows.h>
 #elif _POSIX_C_SOURCE >= 199309L
@@ -40,25 +57,50 @@ extern int cn_timespecComp(struct timespec *tsA, struct timespec *tsB);
 #else
 #include <unistd.h> // for usleep
 #endif
+
+/**
+    * release control and wait for milisecond then use control again.
+    * @param miliseconds wait time before using up control again.
+    */
 extern void cn_sleep(int milisecond);  // cross-platform sleep function
 
-/*  give control to other threads wait for miliseconds
-    then do action */
+/**
+    * Execute action after timeout.
+    * @param action the action to do.
+    * @param timeout the wait time before doing action.
+    */
 extern int cn_doDelayedAction(cn_action *action, int CN_100_MILISECONDS timeout);
 
-/*  make a schedule object. timeout is wait time before first action execution.
-    interval is time between the next execution. keep execute every interval
-    until schedule is removed */
+/**
+    * make cn_sched object.
+    * @param action : action to be executed.
+    * @param timeout : wait time before first action execution.
+    * @param interval : wait time before next action execution.
+    */
 extern cn_sched *cn_makeSched(cn_action *action, int CN_100_MILISECONDS timeout, int CN_100_MILISECONDS interval);
 
+/**
+    * destruct cn_sched object.
+    * @param sched : schedule object to be destructed.
+    */
 extern int cn_desSched(cn_sched *sched);
 
+/**
+    * cn_sched object destructor interface for numerable type
+    * @param args cn_sched object.
+    */
 extern int cn_desSchedNumerableInterface(void *args);
 
-/*  add schedule to the action execution scheduler. */
+/**
+    * add cn_sched object to scheduler
+    * @param sched cn_sched object to be added.
+    */
 extern int cn_schedAdd(cn_sched *sched);
 
-/*  Remove a schedule from the action execution scheduler */
+/**
+    * remove cn_sched object from scheduler
+    * @param sched cn_sched object to be removed.
+    */
 extern int cn_schedRemove(cn_sched *sched);
 
 #endif

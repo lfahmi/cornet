@@ -1,14 +1,17 @@
 #include "cornet/cntype.h"
 
-/*  Make action object, funcptr is a function pointer and
-    args is pointer for arguments used for the function.
-    Return cn_action object if successful,
-    otherwise return NULL. */
+/**
+    * Make action object.
+    * Return cn_action object if successful,
+    * otherwise return NULL.
+    * @param funcptr : function pointer.
+    * @param args : is a struct container arguments for funcptr.
+    * @param argsDestructor : is a destructor for args when action complete.
+    */
 cn_action *cn_makeAction(cn_voidFunc funcptr, void *args, cn_syncFuncPTR argsDestructor)
 {
-    // Allocate memory space for cn_action type
+    // Allocate memory space for cn_action type, defensively.
     cn_action *result = malloc(sizeof(cn_action));
-    // if allocation failed return NULL
     if(result == NULL){return NULL;}
     // Set function pointer, arguments object pointer
     // and cancelation status pointer
@@ -21,8 +24,11 @@ cn_action *cn_makeAction(cn_voidFunc funcptr, void *args, cn_syncFuncPTR argsDes
     return result;
 }
 
-/*  Destroy action object, action is the target.
-    Return 0 if successful. */
+/**
+    * Destroy action object.
+    * Return 0 if successful.
+    * @param action : target.
+    */
 int cn_desAction(cn_action *action)
 {
     // If action is not null then Dealloc cn_action type
@@ -35,8 +41,8 @@ int cn_desAction(cn_action *action)
         {
             action->argsDestructor(action->args);
         }
-        #if CN_DEBUG_MODE == 1
-        cn_log("[DEBUG][file:%s][func:%s][line:%s] dealloc attempt next.", __FILE__, __func__, __LINE__);
+        #if CN_DEBUG_MODE_FREE == 1 && CN_DEBUG_MODE_CNTYPE_H_LVL == 1
+        cn_log("[DEBUG][file:%s][func:%s][line:%d] dealloc attempt next.\n", __FILE__, __func__, __LINE__);
         #endif // CN_DEBUG_MODE
         // Crash potential.
         free(action);
@@ -45,7 +51,12 @@ int cn_desAction(cn_action *action)
     return 0;
 }
 
+/**
+    * cn_desAction interface for numerable type
+    * @param args : target.
+    */
 int cn_desActionNumberableInterface(void *args)
 {
+    // true work is in cn_desAction
     return cn_desAction(args);
 }
