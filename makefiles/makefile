@@ -13,8 +13,8 @@ REQDIRS+=$(BUILDDIR)# Add build directory tree to required directory
 LIBNAME=libcornet.so# output library file name
 IFLAGS=-I$(INCDIR)# Object compilation flags to add search directory for headers
 OFLAGS=-o# Flag for defining output file name.
-LDFLAGS=-Wall -shared# Library compilation flags to indicate that we make shared library
-CFLAGS=-fPIC -Wall $(IFLAGS) -c# Object compilation flags by order, Position Independent Code, Warning all, header dir, make object
+LDFLAGS=-Wall -shared -g# Library compilation flags to indicate that we make shared library
+CFLAGS=-fPIC -Wall $(IFLAGS) -g -c# Object compilation flags by order, Position Independent Code, Warning all, header dir, make object
 DEPS=$(wildcard ${shell find $(INCDIR) -iname "*.h" -print})# Header files
 SRCS=$(wildcard ${shell find $(SRCDIR) -iname "*.c" -print})# C Source files
 OBJS=$(patsubst $(SRCDIR)%.c,$(OBJDIR)%.o,$(SRCS))# C Object files
@@ -41,7 +41,7 @@ $(REQDIRS):
 
 .PHONY:install
 
-install:$(BUILDDIR)$(LIBNAME)
+install:$(BUILDDIR)$(LIBNAME) $(REQDIRS) $(DEPS)
 	cp -fRp $(INCDIR)* $(INSTALLHDIR)
 	cp -fp $(BUILDDIR)$(LIBNAME) $(INSTALLDIR)
 

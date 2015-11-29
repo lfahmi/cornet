@@ -24,7 +24,7 @@ typedef void *(*cn_voidFunc)(void *args);
     */
 typedef struct
 {
-    char *refname;
+    const char *refname;
     cn_voidFunc funcptr;
 
     // the destructor for args objects.
@@ -46,10 +46,11 @@ typedef struct
     bool cancel;
 } cn_action;
 
-#undef CN_DEBUG_MODE_CNTYPE_H_DEEP
-#define CN_DEBUG_MODE_CNTYPE_H_DEEP 1
+#include "cornet/cndebug.h"
+#undef CN_DEBUG_MODE_CNTYPE_H_LVL
+#define CN_DEBUG_MODE_CNTYPE_H_LVL 1
 #undef CN_DEBUG_MODE_FREE
-#define CN_DEBUG_MODE_FREE 1
+#define CN_DEBUG_MODE_FREE 0
 
 /* ACTION */
 
@@ -57,6 +58,7 @@ typedef struct
     * Make action object.
     * Return cn_action object if successful,
     * otherwise return NULL.
+    * @param refname : reference name. (variable name)
     * @param funcptr : function pointer.
     * @param args : is a struct container arguments for funcptr.
     * @param argsDestructor : is a destructor for args when action complete.
@@ -66,7 +68,7 @@ typedef struct
     * if not, and if they were all just global variable. give
     * argsDestructor NULL.
     */
-extern cn_action *cn_makeAction(cn_voidFunc funcptr, void *arg, cn_syncFuncPTR argsDestructor);
+extern cn_action *cn_makeAction(const char *refname, cn_voidFunc funcptr, void *arg, cn_syncFuncPTR argsDestructor);
 
 /**
     * Destroy action object.

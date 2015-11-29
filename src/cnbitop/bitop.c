@@ -1,24 +1,43 @@
 #include "cornet/cnbitop.h"
 
-int cn_bitcp(char *dest, char* src, int len)
+int cn_bitcp(void *dest, void* src, int len)
 {
     if(dest == NULL || src == NULL) {return -1;}
-    int i, nexti = 0;
+    int nextIndex = 0;
     if(len >= 8)
     {
-        int len8 = len / 8;
-        uint64_t *lsrc = (uint64_t *)src, *ldest = (uint64_t *)dest;
-        for(i = 0; i < len8; i++)
+        uint64_t *tsrc = src, *tdest = dest;
+        while(len >= 8)
         {
-            ldest[i] = lsrc[i];
+            *tdest = *tsrc;
+            tdest++;
+            tsrc++;
+            len -= 8;
+            nextIndex += 8;
         }
-        nexti = len8 * 8;
     }
-    if(nexti < len)
+    if(len >= 4)
     {
-        for(i = nexti; i < len; i++)
+        uint32_t *tsrc = src + nextIndex, *tdest = dest + nextIndex;
+        while(len >= 4)
         {
-            dest[i] = src[i];
+            *tdest = *tsrc;
+            tdest++;
+            tsrc++;
+            len -= 4;
+            nextIndex += 4;
+        }
+    }
+    if(len >= 1)
+    {
+        char *tsrc = src + nextIndex, *tdest = dest + nextIndex;
+        while(len >= 1)
+        {
+            *tdest = *tsrc;
+            tdest++;
+            tsrc++;
+            len -= 1;
+            nextIndex += 1;
         }
     }
     return 0;
@@ -26,23 +45,44 @@ int cn_bitcp(char *dest, char* src, int len)
 
 bool cn_bitcompare(char *objA, char* objB, int len)
 {
-    if(objA == NULL || objB == NULL) {return -1;}
-    int i, nexti = 0;
+    if(objA == NULL || objA == NULL) {return -1;}
+    if(*objA != *objB){return false;}
+    void *ptrA = objA, *ptrB = objB;
+    int nextIndex = 0;
     if(len >= 8)
     {
-        int len8 = len / 8;
-        uint64_t *lsrc = (uint64_t *)objB, *ldest = (uint64_t *)objA;
-        for(i = 0; i < len8; i++)
+        uint64_t *tptrA = ptrA, *tptrB = ptrB;
+        while(len >= 8)
         {
-            if(ldest[i] != lsrc[i]){return false;}
+            if(*tptrB != *tptrA){return false;}
+            tptrB++;
+            tptrA++;
+            len -= 8;
+            nextIndex += 8;
         }
-        nexti = len8 * 8;
     }
-    if(nexti < len)
+    if(len >= 4)
     {
-        for(i = nexti; i < len; i++)
+        uint32_t *tptrA = ptrA + nextIndex, *tptrB = ptrB + nextIndex;
+        while(len >= 4)
         {
-            if(objA[i] != objB[i]){return false;}
+            if(*tptrB != *tptrA){return false;}
+            tptrB++;
+            tptrA++;
+            len -= 4;
+            nextIndex += 4;
+        }
+    }
+    if(len >= 1)
+    {
+        char *tptrA = ptrA + nextIndex, *tptrB = ptrB + nextIndex;
+        while(len >= 1)
+        {
+            if(*tptrB != *tptrA){return false;}
+            tptrB++;
+            tptrA++;
+            len -= 1;
+            nextIndex += 1;
         }
     }
     return true;

@@ -31,7 +31,7 @@ typedef struct
 #include "cornet/cndebug.h"
 
 #undef CN_DEBUG_MODE_CNSCHED_H_LVL
-#define CN_DEBUG_MODE_CNSCHED_H_LVL 2
+//#define CN_DEBUG_MODE_CNSCHED_H_LVL 1
 #undef CN_DEBUG_MODE_FREE
 #define CN_DEBUG_MODE_FREE 1
 
@@ -73,11 +73,12 @@ extern int cn_doDelayedAction(cn_action *action, int CN_100_MILISECONDS timeout)
 
 /**
     * make cn_sched object.
+    * @param refname : reference name. (variable name)
     * @param action : action to be executed.
     * @param timeout : wait time before first action execution.
     * @param interval : wait time before next action execution.
     */
-extern cn_sched *cn_makeSched(cn_action *action, int CN_100_MILISECONDS timeout, int CN_100_MILISECONDS interval);
+extern cn_sched *cn_makeSched(const char *refname, cn_action *action, int CN_100_MILISECONDS timeout, int CN_100_MILISECONDS interval);
 
 /**
     * destruct cn_sched object.

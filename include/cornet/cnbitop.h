@@ -6,7 +6,7 @@
 
 /*  Copy bytes from src to dest.
     return 0 if successful. */
-extern int cn_bitcp(char *dest, char* src, int len);
+extern int cn_bitcp(void *dest, void* src, int len);
 
 /*  Compare bytes objA with bytes objB.
     returns true if equal */

@@ -1,12 +1,16 @@
 #include "cornet/cnnum.h"
+#if CN_DEBUG_MODE_CNNUM_H_LVL > 0
+#define CN_DEBUG_TYPENAME "cn_list"
+#endif // CN_DEBUG_MODE_CNTYPE_H_LVL
 
 /**
     * Construct list object
+    * @param refname : reference name. (variable name)
     * @param perSize : sizeof item type that will be stored.
     * @param firstMaxCnt : first size of array to store items.
     * @param appendTheAddress : set true if you want to store pointer.
     */
-cn_list *cn_makeList(uint16_t perSize, uint32_t firstMaxCnt, bool appendTheAddress)
+cn_list *cn_makeList(const char *refname, int perSize, int firstMaxCnt, bool appendTheAddress)
 {
     // Defensive code.
     if(perSize == 0 || firstMaxCnt == 0) {return NULL;}
@@ -14,6 +18,9 @@ cn_list *cn_makeList(uint16_t perSize, uint32_t firstMaxCnt, bool appendTheAddre
     // Allocate list structure, defensively.
     cn_list *tlist = malloc(sizeof(cn_list));
     if(tlist == NULL) {return NULL;}
+
+    // Set reference name
+    tlist->refname = refname;
 
     // set structure default value.
     tlist->perSize = perSize;
@@ -66,14 +73,11 @@ int cn_desList(cn_list *tlist)
 
     // dealloc list buffer
     #if CN_DEBUG_MODE_FREE == 1 && CN_DEBUG_MODE_CNNUM_H_LVL > 0
-    cn_log("[DEBUG][file:%s][func:%s][line:%d] dealloc attempt next.", __FILE__, __func__, __LINE__);
+    cn_log("[DEBUG][file:%s][func:%s][line:%d][%s:%s] dealloc attempt next.\n", __FILE__, __func__, __LINE__, tlist->refname, CN_DEBUG_TYPENAME);
     #endif // CN_DEBUG_MODE
     free(*tlist->b);
 
     // dealloc list buffer pointer holder
-    #if CN_DEBUG_MODE_FREE == 1 && CN_DEBUG_MODE_CNNUM_H_LVL > 0
-    cn_log("[DEBUG][file:%s][func:%s][line:%d] dealloc attempt next.", __FILE__, __func__, __LINE__);
-    #endif // CN_DEBUG_MODE
     free(tlist->b);
 
     // unlock list
@@ -83,9 +87,6 @@ int cn_desList(cn_list *tlist)
     pthread_mutex_destroy(&tlist->key);
 
     // finnaly dealloc list structure
-    #if CN_DEBUG_MODE_FREE == 1 && CN_DEBUG_MODE_CNNUM_H_LVL > 0
-    cn_log("[DEBUG][file:%s][func:%s][line:%d] dealloc attempt next.", __FILE__, __func__, __LINE__);
-    #endif // CN_DEBUG_MODE
     free(tlist);
 
     // finish fine
@@ -118,18 +119,8 @@ int cn_listAppend(cn_list *tlist, void *item)
     if(tlist->appendTheAddress == 1)
     {
         // seems like this is a list of pointer we must hold the address
-        // on buffer to be copied to the list.
-        void **tmpPtr = malloc(sizeof(void *));
-        if(tmpPtr == NULL){goto unlock_reterr;}
-
-        // now set buffer to be copied by item address
-        *tmpPtr = item;
-
-        // finnaly copy it to the list buffer. defensively.
-        n = cn_bitcp((*tlist->b + (tlist->cnt * tlist->perSize)), (char *)  tmpPtr, tlist->perSize);
-
-        // dealloc address holder
-        free(tmpPtr);
+        void **items = (void **)*tlist->b;
+        items[tlist->cnt] = item;
     }
     else
     {
@@ -160,10 +151,10 @@ int cn_listAppend(cn_list *tlist, void *item)
     * @param indx : item to be retreived index from the list.
     * return NULL if fail.
     */
-void *cn_listGet(cn_list *tlist, uint32_t indx)
+void *cn_listGet(cn_list *tlist, int indx)
 {
     // Defensive code.
-    if(tlist == NULL){return NULL;}
+    if(tlist == NULL || indx < 0){return NULL;}
     if(tlist->cnt < indx) {return NULL;}
 
     // return the item address
@@ -177,10 +168,10 @@ void *cn_listGet(cn_list *tlist, uint32_t indx)
     * @param item : new item value for item at index.
     * return 0 for fine.
     */
-int cn_listSet(cn_list *tlist, uint32_t indx, void * item)
+int cn_listSet(cn_list *tlist, int indx, void * item)
 {
     // Defensive code.
-    if(tlist == NULL || item == NULL){return -1;}
+    if(tlist == NULL || item == NULL || indx < 0){return -1;}
     if(tlist->cnt < indx) {return -1;}
 
     // Declare status code
@@ -190,15 +181,8 @@ int cn_listSet(cn_list *tlist, uint32_t indx, void * item)
     pthread_mutex_lock(&tlist->key);
     if(tlist->appendTheAddress)
     {
-        // seems like this is a pointer list. lets copy its address to list
-        // create address holder for bitcp, pointer of pointer
-        void **tmpPtr = malloc(sizeof(void *));
-        if(tmpPtr == NULL){goto reterr;}
-        *tmpPtr = item;
-        n = cn_bitcp((*tlist->b + (indx * tlist->perSize)), (char *)tmpPtr, tlist->perSize);
-
-        // dealloc address holder
-        free(tmpPtr);
+        void **items = *tlist->b;
+        items[indx] = item;
     }
     else
     {
@@ -210,12 +194,6 @@ int cn_listSet(cn_list *tlist, uint32_t indx, void * item)
 
     // return status from bitcp
     return n;
-
-    reterr:
-
-    // unlock list then return failure
-    pthread_mutex_unlock(&tlist->key);
-    return -1;
 }
 
 /**
@@ -225,13 +203,8 @@ int cn_listSet(cn_list *tlist, uint32_t indx, void * item)
     * @param cnt : count of ordered item, only used for non append address list.
     * return -1 for failure.
     */
-int cn_listIndexOf(cn_list *tlist, void *item, uint16_t CN_NOT_USED_FOR_LIST_APPENDADDRESS cnt)
+int listIndexOf(cn_list *tlist, void *item, int CN_NOT_USED_FOR_LIST_APPENDADDRESS cnt)
 {
-    // Defemsive code.
-    if(tlist == NULL || item == NULL){return -1;}
-
-    // lock the list
-    pthread_mutex_lock(&tlist->key);
     int i;
     if(tlist->appendTheAddress)
     {
@@ -244,8 +217,7 @@ int cn_listIndexOf(cn_list *tlist, void *item, uint16_t CN_NOT_USED_FOR_LIST_APP
         {
             if(items[i] == item)
             {
-                // we got the index. unlock list and return index.
-                pthread_mutex_unlock(&tlist->key);
+                // we got the index. return index.
                 return i;
             }
         }
@@ -263,16 +235,32 @@ int cn_listIndexOf(cn_list *tlist, void *item, uint16_t CN_NOT_USED_FOR_LIST_APP
             if(cn_bitcompare((listPtr + i), item, (tlist->perSize * cnt)) == true)
             {
                 // we got the mathcing items index from the list.
-                // unlock the list and return the index.
-                pthread_mutex_unlock(&tlist->key);
+                // return the index.
                 return i;
             }
         }
     }
-    // seems like we couldn't find matching item in list
-    // unlock list and return failure.
-    pthread_mutex_unlock(&tlist->key);
+
+    // seems like we couldn't find matching item in list return failure.
     return -1;
+}
+
+/** Interface for listIndexOf */
+int cn_listIndexOf(cn_list *tlist, void *item, int CN_NOT_USED_FOR_LIST_APPENDADDRESS cnt)
+{
+    // Defensive code
+    if(tlist == NULL || item == NULL || cnt < 0){return -1;}
+
+    // lock the list
+    pthread_mutex_lock(&tlist->key);
+
+    // Real function.
+    int n =listIndexOf(tlist, item, cnt);
+
+    // unlock the list
+    pthread_mutex_unlock(&tlist->key);
+
+    return n;
 }
 
 /**
@@ -281,7 +269,7 @@ int cn_listIndexOf(cn_list *tlist, void *item, uint16_t CN_NOT_USED_FOR_LIST_APP
     * @param item : item to look for.
     * @param cnt : count of ordered item, only used for non append address list.
     */
-bool cn_listContains(cn_list *tlist, void *item, uint16_t CN_NOT_USED_FOR_LIST_APPENDADDRESS cnt)
+bool cn_listContains(cn_list *tlist, void *item, int CN_NOT_USED_FOR_LIST_APPENDADDRESS cnt)
 {
     // if item is found at any valid index, return true.
     if(cn_listIndexOf(tlist, item, cnt) >= 0){return true;}
@@ -295,22 +283,10 @@ bool cn_listContains(cn_list *tlist, void *item, uint16_t CN_NOT_USED_FOR_LIST_A
     * @param remlen : how much item to be removed.
     * @param itemDestructor : destructor for the item, set NULL for dont destruct.
     */
-int cn_listSplice(cn_list *tlist, uint32_t startIndx, uint16_t remlen, cn_syncFuncPTR itemDestructor)
+static int listSplice(cn_list *tlist, int startIndx, int remlen, cn_syncFuncPTR itemDestructor)
 {
-    // declare work index
-    uint32_t i = 0;
-
     // declare status code
     int n = 0;
-
-    // add index by removal start index
-    i += startIndx;
-
-    // add index by length of items to be removed
-    i += remlen;
-
-    // lock the list
-    pthread_mutex_lock(&tlist->key);
 
     //AUTO FREE FEATURE
     void **itemToDestruct;
@@ -322,24 +298,25 @@ int cn_listSplice(cn_list *tlist, uint32_t startIndx, uint16_t remlen, cn_syncFu
             // rather than using single pointer of pointer
             // alocate enough pointer array.
             itemToDestruct = malloc(sizeof(void *) * remlen);
+            void **items = (void **)*tlist->b;
             int loopi;
             for(loopi = 0; loopi < remlen; loopi++)
             {
                 // catch the item addresses
-                itemToDestruct[loopi] = cn_listGet(tlist, (startIndx + loopi));
+                itemToDestruct[loopi] = items[startIndx + loopi];
             }
         }
     }
 
-    if(i >= tlist->cnt)
+    // declare index after removed items
+    int nextItemsIndex = startIndx + remlen;
+
+    if(nextItemsIndex < (tlist->cnt) )
     {
         // seems like there is items at index higher than what we will remove.
         // we need to move them to the right index
-        n = cn_bitcp((*tlist->b + (startIndx * tlist->perSize)), (*tlist->b + (i * tlist->perSize)), (tlist->cnt - i) * tlist->perSize);
-        if(n < 0)
-        {
-            goto unlock_reterr;
-        }
+        n = cn_bitcp((*tlist->b + (startIndx * tlist->perSize)), (*tlist->b + (nextItemsIndex * tlist->perSize)), (tlist->cnt - nextItemsIndex) * tlist->perSize);
+        if(n < 0){goto unlock_reterr;}
     }
     //AUTO FREE FEATURE
     if(itemDestructor != NULL)
@@ -358,18 +335,30 @@ int cn_listSplice(cn_list *tlist, uint32_t startIndx, uint16_t remlen, cn_syncFu
     // decrease the list count by removed items count
     tlist->cnt -= remlen;
 
-    // unlock list
-    pthread_mutex_unlock(&tlist->key);
-
     // return fine
     return 0;
 
     // error handler
     unlock_reterr:
 
-    // unlock list then return failure
-    pthread_mutex_unlock(&tlist->key);
+    // return failure
     return -1;
+}
+
+/** Interface for listSplice */
+int cn_listSplice(cn_list *tlist, int startIndx, int remlen, cn_syncFuncPTR itemDestructor)
+{
+    if(tlist == NULL || startIndx < 0 || remlen < 0){return -1;}
+
+    // lock the list
+    pthread_mutex_lock(&tlist->key);
+
+    int n = listSplice(tlist, startIndx, remlen, itemDestructor);
+
+    // unlock list
+    pthread_mutex_unlock(&tlist->key);
+
+    return n;
 }
 
 /**
@@ -377,10 +366,40 @@ int cn_listSplice(cn_list *tlist, uint32_t startIndx, uint16_t remlen, cn_syncFu
     * @param tlist : target list.
     * @param indx : index of item to be removed.
     */
-int cn_listRemoveAt(cn_list *tlist, uint32_t indx)
+int cn_listRemoveAt(cn_list *tlist, int indx)
 {
     // real work in list splice
     return cn_listSplice(tlist, indx, 1, NULL);
+}
+
+/**
+    * Look for Items matching in the list and remove it from the list.
+    * @param tlist : Target list.
+    * @param item : Items to be removed.
+    * @param cnt : How much items to be removed.
+    * return 0 for fine result.
+    */
+int cn_listRemove(cn_list *tlist, void *item, int CN_NOT_USED_FOR_LIST_APPENDADDRESS cnt, cn_syncFuncPTR itemDestructor)
+{
+    // Defensive code
+    if(tlist == NULL || item == NULL){return -1;}
+    if(tlist->appendTheAddress == true){cnt = 1;}
+    else{if(cnt < 0){return -1;}}
+
+    // Lock the list
+    pthread_mutex_lock(&tlist->key);
+
+    // Find index of items
+    int indx = listIndexOf(tlist, item, cnt);
+
+    // Remove the items
+    int n = listSplice(tlist, indx, cnt, itemDestructor);
+
+    // Unlock the list
+    pthread_mutex_unlock(&tlist->key);
+
+    // Return status
+    return n;
 }
 
 /**
@@ -388,14 +407,14 @@ int cn_listRemoveAt(cn_list *tlist, uint32_t indx)
     * @param tlist : target list.
     * @param cnt : how much capacity will expand.
     */
-int cn_listExpand(cn_list *tlist, uint32_t cnt)
+static int listExpand(cn_list *tlist, int cnt)
 {
     // Defensive code.
-    if(tlist == NULL) {return -1;}
+    if(tlist == NULL || cnt < 0) {return -1;}
     if(cnt == 0) {return 0;}
 
     // declare new capacity of list buffer.
-    uint32_t newblen = tlist->blen + (cnt * tlist->perSize);
+    int newblen = tlist->blen + (cnt * tlist->perSize);
 
     // Allocate new list buffer defensively.
     char *newb = malloc(newblen);
@@ -403,9 +422,6 @@ int cn_listExpand(cn_list *tlist, uint32_t cnt)
 
     // Declare status code.
     int n = 0;
-
-    // lock the list
-    pthread_mutex_lock(&tlist->key);
 
     // copy list buffer items to newly expanded buffer, defensively.
     n = cn_bitcp(newb, *tlist->b, newblen);
@@ -421,18 +437,33 @@ int cn_listExpand(cn_list *tlist, uint32_t cnt)
     // finnaly set newly expanded buffer as list buffer.
     *tlist->b = newb;
 
-    // unlock the list
-    pthread_mutex_unlock(&tlist->key);
-
     // return fine
     return 0;
 
     // error handler
     unlock_reterr:
 
-    // unlock the list then return failure.
-    pthread_mutex_unlock(&tlist->key);
+    // return failure.
     return -1;
+}
+
+/** Interface for listExpand */
+int cn_listExpand(cn_list *tlist, int cnt)
+{
+    // Defensive code
+    if(tlist == NULL || cnt < 0){return -1;}
+
+    // Lock the list
+    pthread_mutex_lock(&tlist->key);
+
+    // Real function
+    int n = listExpand(tlist, cnt);
+
+    // Unlock the list
+    pthread_mutex_unlock(&tlist->key);
+
+    // return status
+    return n;
 }
 
 /**
@@ -453,18 +484,14 @@ int cn_listEmpty(cn_list *tlist, cn_syncFuncPTR itemDestructor)
     * @param items : item objects array.
     * @param cnt : how much item is goint to be added.
     */
-int cn_listInsertAt(cn_list *tlist, uint32_t indx, void *items, uint16_t cnt)
+static int listInsertAt(cn_list *tlist, int indx, void *items, int cnt)
 {
-    // Defensive code.
-    if(tlist == NULL || items == NULL) {return -1;}
-    if(cnt == 0){return 0;}
-
     // declare indication for expansion is required
     bool needExpand = false;
 
     // temporary list capacity, list buffer lenght, list buffer
-    uint32_t tmpMaxCnt;
-    uint32_t tmpblen;
+    int tmpMaxCnt;
+    int tmpblen;
     char *tmpb;
     if((float)(tlist->cnt + cnt) >= (float)tlist->maxCnt - ((float)tlist->maxCnt * 0.3f))
     {
@@ -496,9 +523,6 @@ int cn_listInsertAt(cn_list *tlist, uint32_t indx, void *items, uint16_t cnt)
     }
     // declare status code
     int n = 0;
-
-    // go inside the list and lock it.
-    pthread_mutex_lock(&tlist->key);
     if(needExpand == true && indx > 0)
     {
         // seems like tmp list buffer is new buffer, copy items before insert index, defensively.
@@ -513,7 +537,7 @@ int cn_listInsertAt(cn_list *tlist, uint32_t indx, void *items, uint16_t cnt)
             we need to move the items at insert index to
             the new place so we can insert our items. */
         // take the bufferlength of the items at insert index to the list end.
-        uint32_t tmpblen2 = ((tlist->cnt - indx) * tlist->perSize);
+        int tmpblen2 = ((tlist->cnt - indx) * tlist->perSize);
 
         // tmp copy buffer the lenght of items to move
         char tmpb2[tmpblen2];
@@ -544,14 +568,29 @@ int cn_listInsertAt(cn_list *tlist, uint32_t indx, void *items, uint16_t cnt)
     // add the list items count by the items count we add.
     tlist->cnt += cnt;
 
-    // get out from the list left it unlocked
-    pthread_mutex_unlock(&tlist->key);
-
     // return fine.
     return 0;
 
-    // error handler, unlock the list, return failure.
+    // error handler, return failure.
     unlock_reterr:
-    pthread_mutex_unlock(&tlist->key);
     return -1;
+}
+
+/** Interface for listInsertAt */
+int cn_listInsertAt(cn_list *tlist, int indx, void *items, int cnt)
+{
+    // Defensive code.
+    if(tlist == NULL || items == NULL || indx < 0 || cnt < 1) {return -1;}
+
+    // Lock the list
+    pthread_mutex_lock(&tlist->key);
+
+    // Real function
+    int n = listInsertAt(tlist, indx, items, cnt);
+
+    // Unlock the list
+    pthread_mutex_unlock(&tlist->key);
+
+    // Return status
+    return n;
 }

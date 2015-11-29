@@ -1,14 +1,21 @@
 #include "cornet/cnnum.h"
 
+#if CN_DEBUG_MODE_CNNUM_H_LVL > 0
+#define CN_DEBUG_TYPENAME "cn_queue"
+#endif // CN_DEBUG_MODE_CNNUM_H_LVL
+
 /**
     * construct cn_queue object.
+    * @param refname : reference name. (variable name)
     * @param perSize : sizeof item to store.
     */
-cn_queue *cn_makeQue(uint16_t perSize)
+cn_queue *cn_makeQue(const char *refname, uint16_t perSize)
 {
     /// allocate memory for object, set default value. return NULL if fails.
     cn_queue *result = malloc(sizeof(cn_queue));
+    if(result == NULL){return NULL;}
     /// initialize key for queue
+    result->refname = refname;
     pthread_mutex_init(&result->key, NULL);
     result->cnt = 0;
     result->perSize = 0;
@@ -48,7 +55,7 @@ int cn_desQue(cn_queue *tque, cn_syncFuncPTR itemDestructor)
     /// Destroy queue key
     pthread_mutex_destroy(&tque->key);
     #if CN_DEBUG_MODE_FREE == 1 && CN_DEBUG_MODE_CNNUM_H_LVL > 0
-    cn_log("[DEBUG][file:%s][func:%s][line:%d] dealloc attempt next.\n", __FILE__, __func__, __LINE__);
+    cn_log("[DEBUG][file:%s][func:%s][line:%d][%s:%s] dealloc attempt next.\n", __FILE__, __func__, __LINE__, tque->refname, CN_DEBUG_TYPENAME);
     #endif // CN_DEBUG_MODE
     // CRASH POTENTIAL!
     /// Finnaly dealocaty cn_queue object.
@@ -133,9 +140,6 @@ void *cn_queDe(cn_queue *tque)
         // must be the next node of the tmp node
         tque->frontNode = tmpNode->next;
     }
-    #if CN_DEBUG_MODE_FREE == 1 && CN_DEBUG_MODE_CNNUM_H_DEEP == 1
-    cn_log("[DEBUG][file:%s][func:%s][line:%d] dealloc attempt next.\n", __FILE__, __func__, __LINE__);
-    #endif // CN_DEBUG_MODE
     free(tmpNode);
 
     // finnaly decrease queue count then we can unlock the queue

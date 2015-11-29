@@ -12,6 +12,7 @@
 
 typedef struct
 {
+    const char *refname;
     cn_list *threads;
     uint32_t workingThread;
     cn_queue *actions;
@@ -33,11 +34,11 @@ typedef struct
 
 #include "cornet/cndebug.h"
 
-#define CN_DEBUG_MODE 1
-
+//#define CN_DEBUG_MODE_CNTHREAD_H 1
+#define CN_DEBUG_MODE_CNTHREAD_H_LVL 1
 /* THREADPOOL */
 
-extern cn_threadpool *cn_makeThpl(uint32_t threadCnt);
+extern cn_threadpool *cn_makeThpl(const char *refname, uint32_t threadCnt);
 
 extern int cn_thplEnq(cn_threadpool *thpl, cn_action *action);
 
@@ -49,10 +50,10 @@ extern int cn_thplIncWorker(cn_threadpool *thpl, int incCnt);
 
 extern int cn_thplIncWorkerAsync(cn_threadpool *thpl, int incCnt, cn_action *callback);
 
-extern int cn_thplCancelAll(cn_threadpool *thpl, cn_syncFuncPTR itemDestructor);
+extern int cn_thplCancelAll(cn_threadpool *thpl);
 
-extern int cn_desThpl(cn_threadpool *thpl, cn_syncFuncPTR itemDestructor);
+extern int cn_desThpl(cn_threadpool *thpl);
 
-extern int cn_desThplAsync(cn_threadpool *thpl, cn_syncFuncPTR itemDestructor, cn_action *callback);
+extern int cn_desThplAsync(cn_threadpool *thpl, cn_action *callback);
 
 #endif
