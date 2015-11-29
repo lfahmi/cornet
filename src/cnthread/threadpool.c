@@ -1,51 +1,71 @@
 #include "cornet/cnthread.h"
 
+/**
+    * Argument structure for AsyncThread Function
+    */
 struct asyncThreadArgs
 {
-    cn_syncFuncPTR syncTask;
-    void *args;
-    cn_action *callback;
-    pthread_t tid;
+    cn_syncFuncPTR syncTask; // Sync Task that will be executed
+    void *args; // Arguments for Sync Task
+    cn_action *callback; // Action to take if Sync Task success
+    pthread_t tid; // Thread id for AsyncTask Execution.
 };
 
-// warp sync decrease thread worker so we can call this on pthread create
+/**
+    * A Sync Task Warping Frame, make it Async Task
+    */
 void *asyncThread(void *args)
 {
+    // Parse the arguments
     struct asyncThreadArgs *arguments = args;
     if(arguments->syncTask(arguments->args) == 0)
     {
+        // If sync task success, execute callback.
         if(arguments->callback != NULL)
         {
+            // If callback is not requested to cancell. then execute it
             if(!arguments->callback->cancel)
             {
                 arguments->callback->funcptr(arguments->callback->args);
             }
+            // This is where callback action destroyed.
             cn_desAction(arguments->callback);
         }
     }
+    // finnaly dealloc the arguments then exit thread.
     free(arguments);
     return NULL;
 }
 
-
-struct EndTryAttemptArgs
+/**
+    * Argument structure for endTryAttempt Function
+    */
+struct endTryAttemptArgs
 {
-    bool cancel;
-    bool *trigg;
+    bool cancel; // Cancel the operation
+    bool *trigg; // Triger for the operation
 };
 
-// This will be executed on new thread to end some try attempt
-// by setting the arg to false and free it.
-static void *EndTryAttempt(void *args)
+/**
+    * This function is used to pull a trigger to false
+    * When an operation trying to do something until it success
+    * this function will limit how long the operation will
+    * keep trying. This is usualy called from scheduler.
+    */
+static void *endTryAttempt(void *args)
 {
     #ifdef CN_DEBUG_MODE_CNTHREAD_H
     cn_log("cnthread DEBUG cn_thplDecWorker end flushing start phase %d\n");
     #endif // CN_DEBUG_MODE_CNTHREAD_H
-    struct EndTryAttemptArgs *targs = args;
+    // Parse the arguments
+    struct endTryAttemptArgs *targs = args;
     if(targs->cancel == false)
     {
+        // We are allowed to pull the trigger.
+        // set trigger to false.
         *targs->trigg = false;
     }
+    // Dealocate arguments
     free(targs);
     #ifdef CN_DEBUG_MODE_CNTHREAD_H
     cn_log("cnthread DEBUG cn_thplDecWorker end flushing end phase %d\n");
@@ -54,395 +74,656 @@ static void *EndTryAttempt(void *args)
 }
 
 
-// threadpool worker thread function;
+/**
+    * Threadpool thread working frame.
+    * This frame receive job from threadpool
+    * queue and execute it.
+    * Argument is cn_threadpoolWorker structure.
+    */
 static void *threadWork(void *arg)
 {
-    cn_thread *thread = arg;
-    pthread_mutex_t *key = &thread->parent->key;
-    pthread_cond_t *cond = &thread->parent->cond;
+    // Parse the arguments.
+    cn_threadpoolWorker *thread = arg;
+
+    // Get the job queue lock key and condition.
+    pthread_mutex_t *key = &thread->parent->jobsKey;
+    pthread_cond_t *cond = &thread->parent->jobsCond;
+
+    // Get the working worker counter
+    uint32_t *workingThread = &thread->parent->workingThread;
+
+    // Get the job queue.
     cn_queue *actions = thread->parent->actions;
+
+    // Get the thread activity variable address
     bool *gotThplWork = &thread->gotThplWork;
+
+    // Set the thread running status
     thread->running = true;
     bool *running = &thread->running;
+
     #if CN_DEBUG_MODE_CNTHREAD_H_LVL >= 5
     cn_log("worker thread %d created\n", (int)thread->threadid);
     #endif // CN_DEBUG_MODE_CNTHREAD_H_LVL
     while(*running == true)
     {
-        #if CN_DEBUG_MODE_CNTHREAD_H_LVL >= 10
-        cn_log("worker thread %d before lock\n", (int)thread->threadid);
-        #endif // CN_DEBUG_MODE_CNTHREAD_H_LVL
+        // Thread is still allowed to run, keep doing our job.
+        // Lock the jobs queue
         pthread_mutex_lock(key);
-        //int www = actions->cnt;
-        #if CN_DEBUG_MODE_CNTHREAD_H_LVL >= 10
-        cn_log("worker thread %d after lock\n", (int)thread->threadid);
-        #endif // CN_DEBUG_MODE_CNTHREAD_H_LVL
         if(actions->cnt == 0)
         {
             #if CN_DEBUG_MODE_CNTHREAD_H_LVL >= 10
             cn_log("worker thread %d entering wait\n", (int)thread->threadid);
             #endif // CN_DEBUG_MODE_CNTHREAD_H_LVL
+
+            // The job queue is empty. lets wait for a change of condition.
             pthread_cond_wait(cond, key);
+
+            if(!*running)
+            {
+                // Condition has changed, it seems this thread is not allowed
+                // to run anymore, go to thread termination.
+                pthread_mutex_unlock(key);
+                break;
+            }
         }
-        #if CN_DEBUG_MODE_CNTHREAD_H_LVL >= 10
-        cn_log("worker thread %d got signal\n", (int)thread->threadid);
-        #endif // CN_DEBUG_MODE_CNTHREAD_H_LVL
-        if(!*running)
-        {
-            pthread_mutex_unlock(key);
-            break;
-        }
+        // Dequeue job from jobs queue
         cn_action *work = cn_queDe(actions);
+
+        // Unlock the jobs queue
         pthread_mutex_unlock(key);
         if(work != NULL)
         {
             if(!work->cancel && work->funcptr != NULL)
             {
+                // the job is not null, and not requested to cancel.
+                // set the thread activity to got work, add wokringTask
+                // counter by one and do the job.
                 *gotThplWork = true;
-                #ifdef CN_DEBUG_MODE_CNTHREAD_H
+                workingThread++;
+                #if CN_DEBUG_MODE_CNTHREAD_H_LVL >= 10
                 cn_log("thread %d got work\n", (int)thread->threadid);
-                #endif // CN_DEBUG_MODE_CNTHREAD_H
+                #endif // CN_DEBUG_MODE_CNTHREAD_H_LVL
                 work->funcptr(work->args);
+
+                // we are done working. subtract the workingThread by one.
+                *workingThread--;
             }
+            // call the job destructor
             cn_desAction(work);
         }
         else
         {
-            #ifdef CN_DEBUG_MODE_CNTHREAD_H
+            #if CN_DEBUG_MODE_CNTHREAD_H_LVL >= 5
             cn_log("worker thread %d got false signal with no work inside\n", (int)thread->threadid);
-            #endif // CN_DEBUG_MODE_CNTHREAD_H
+            #endif // CN_DEBUG_MODE_CNTHREAD_H_LVL
+            // We got a null reference of job. let other thread do their stuff.
             cn_sleep(1);
         }
+        // we have done our job. lets set our activity to dont get a job.
         *gotThplWork = false;
     }
-    #if CN_DEBUG_MODE_CNTHREAD_H_LVL >= 10
+    #if CN_DEBUG_MODE_CNTHREAD_H_LVL >= 5
     cn_log("worker thread %d got termination sign\n", (int)thread->threadid);
     #endif // CN_DEBUG_MODE_CNTHREAD_H_LVL
-    //pthread_mutex_lock(&thread->parent->terminatorKey);
+
+    /*  We are about to terminate thread.
+        to allow better debugging. we need to know the index of our thread
+        in the threadpool, so we need to lock the thread list for termination
+        at this level. so we can get the index and remove it safely.
+        */
+    pthread_mutex_lock(&thread->parent->threadWorkerListKey);
+
+    // get the thread list
     cn_list *threads = thread->parent->threads;
+
+    // find our thread index
     int myIndx = cn_listIndexOf(threads, thread, 0);
-    //cn_listRemoveAt(threads, myIndx);
-    cn_listRemove(threads, thread, 1, NULL);
+
+    // remove our thread from list
+    cn_listRemoveAt(threads, myIndx);
     #if CN_DEBUG_MODE_CNTHREAD_H_LVL >= 5
     cn_log("worker thread %d removing index %d from thread list %d, GOODBYE\n", (int)thread->threadid, myIndx, threads->cnt);
     #endif // CN_DEBUG_MODE_CNTHREAD_H_LVL
-    //pthread_mutex_unlock(&thread->parent->terminatorKey);
+
+    // finnaly unlock the list
+    pthread_mutex_unlock(&thread->parent->threadWorkerListKey);
+
+    // dealloc the thread structure
     free(thread);
     return NULL;
 }
 
-// Initialize new threadpool
-cn_threadpool *cn_makeThpl(const char *refname, uint32_t threadCnt)
+/**
+    * Initialize new threadpool.
+    * @param refname : object reference name.
+    * @param threadCnt : first thread count.
+    * return NULL for failure.
+    */
+cn_threadpool *cn_makeThpl(const char *refname, int threadCnt)
 {
+    // Defensive code
+    if(threadCnt < 0){return NULL;}
+
+    // Allocate threadpool structure, defensively.
     cn_threadpool *result = malloc(sizeof(cn_threadpool));
     if(result == NULL){return NULL;}
-    result->threads = cn_makeList("cn_threadpool.threads", sizeof(cn_thread *), (threadCnt * 2), true);
+
+    // Make cn_threadpoolWorker list, defensively.
+    result->threads = cn_makeList("cn_threadpool.threads", sizeof(cn_threadpoolWorker *), (threadCnt * 2), true);
     if(result->threads == NULL){free(result); return NULL;}
+
+    // Set the reference name.
     result->refname = refname;
-    pthread_mutex_init(&result->key, NULL);
-    pthread_mutex_init(&result->terminatorKey, NULL);
-    pthread_cond_init(&result->cond, NULL);
+
+    // Initialize keys and condition.
+    pthread_mutex_init(&result->jobsKey, NULL);
+    pthread_mutex_init(&result->threadWorkerListKey, NULL);
+    pthread_cond_init(&result->jobsCond, NULL);
     pthread_attr_init(&result->threadAttr);
+
+    // Make cn_queue of cn_action for jobs queue, defensively.
     result->actions = cn_makeQue("cn_threadpool.jobs", sizeof(cn_action *));
-    if(result->actions == NULL)
-    {
-        goto reterr;
-    }
-    if(cn_thplIncWorker(result, threadCnt) != 0){goto reterr;}
+    if(result->actions == NULL){goto reterr1;}
+
+    // Increase the cn_threadpoolWorker, defensively.
+    if(cn_thplIncWorker(result, threadCnt) < 0){goto reterr2;}
+
+    // return Result.
     return result;
 
-    reterr:
-    #ifdef CN_DEBUG_MODE_CNTHREAD_H
+    // Error handler, destroy all that were created here.
+    reterr2:
+    cn_desQue(result->actions, NULL);
+    reterr1:
+    #if CN_DEBUG_MODE_CNTHREAD_H_LVL >= 1
     cn_log("threadpool creation error %s\n", refname);
-    #endif // CN_DEBUG_MODE_CNTHREAD_H
+    #endif // CN_DEBUG_MODE_CNTHREAD_H_LVL
     cn_desList(result->threads);
-    pthread_mutex_destroy(&result->key);
-    pthread_mutex_destroy(&result->terminatorKey);
-    pthread_cond_destroy(&result->cond);
+    pthread_mutex_destroy(&result->jobsKey);
+    pthread_mutex_destroy(&result->threadWorkerListKey);
+    pthread_cond_destroy(&result->jobsCond);
     pthread_attr_destroy(&result->threadAttr);
+    free(result);
     return NULL;
 }
 
-// Add new job for threadpool
+/**
+    * Enqueue a job to threadpool.
+    * @param thpl : target threadpool.
+    * @param action : the job to enqueue.
+    * @param return 0 for fine.
+    */
 int cn_thplEnq(cn_threadpool *thpl, cn_action *action)
 {
-    pthread_mutex_lock(&thpl->key);
-    if(cn_queEn(thpl->actions, action) == 0){pthread_cond_signal(&thpl->cond);}
-    else {pthread_mutex_unlock(&thpl->key); return -1;}
-    #ifdef CN_DEBUG_MODE_CNTHREAD_H
+    // Lock the jobs queue
+    pthread_mutex_lock(&thpl->jobsKey);
+
+    // Enqueue the job to jobs queue, if successful, signal waiting thread.
+    if(cn_queEn(thpl->actions, action) == 0){pthread_cond_signal(&thpl->jobsCond);}
+    // If failed, unlock the jobs queue, then return failure.
+    else {pthread_mutex_unlock(&thpl->jobsKey); return -1;}
+    #if CN_DEBUG_MODE_CNTHREAD_H_LVL >= 10
     cn_log("threadpool enq success\n");
-    #endif // CN_DEBUG_MODE_CNTHREAD_H
-    pthread_mutex_unlock(&thpl->key);
+    #endif // CN_DEBUG_MODE_CNTHREAD_H_LVL
+
+    // enqueue job finished, unlock the queue then return fine.
+    pthread_mutex_unlock(&thpl->jobsKey);
     return 0;
 }
 
+/**
+    * cancel all the waiting jobs to be done.
+    * @param thpl : target threadpool.
+    */
 int cn_thplCancelAll(cn_threadpool *thpl)
 {
-    pthread_mutex_lock(&thpl->key);
-    cn_queEmpty(thpl->actions, cn_desActionNumerableInterface);
-    pthread_mutex_unlock(&thpl->key);
-    return 0;
+    // lock the jobs queue
+    pthread_mutex_lock(&thpl->jobsKey);
+
+    // empty the jobs queue.
+    int n = cn_queEmpty(thpl->actions, cn_desActionNumerableInterface);
+
+    // unlock the jobs queue then return execution status.
+    pthread_mutex_unlock(&thpl->jobsKey);
+    return n;
 }
 
-// argument warper for ThplIncWorkerTrueWork
-struct ThplIncWorkerTrueWorkArgs
+/**
+    * Argument structure for ThplIncWOrkerRealWork function
+    */
+struct ThplIncWorkerRealWorkArgs
 {
-    cn_threadpool *thpl;
-    int incCnt;
+    cn_threadpool *thpl; // Target threadpool.
+    int incCnt; // the number of thread to add.
 };
 
-// The core of every threadpool worker increment.
-static int ThplIncWorkerTrueWork(void *args)
+/**
+    * Increase the threadpool worker.
+    * @param args : pointer of ThplIncWOrkerRealWorkArgs structure.
+    * return 0 fine, 1 acceptable, -1 failure.
+    */
+static int ThplIncWorkerRealWork(void *args)
 {
-    struct ThplIncWorkerTrueWorkArgs *targs = args;
+    // Parse the arguments.
+    struct ThplIncWorkerRealWorkArgs *targs = args;
     cn_threadpool *thpl = targs->thpl;
     int incCnt = targs->incCnt;
+
+    // free the arguments holder.
     free(args);
+
+    // declare iterator and execution status.
     int i;
     int retCode = 0;
+
+    // lock the thread worker list.
+    pthread_mutex_lock(&thpl->threadWorkerListKey);
+
+    // record the thread count before adding new thread.
+    int lastWorkerCnt = thpl->threads->cnt;
     for(i = 0; i < incCnt; i++)
     {
-        cn_thread *thread = malloc(sizeof(cn_thread));
+        // Allocate a structure of cn_threadpool_worker, defensively.
+        cn_threadpoolWorker *thread = malloc(sizeof(cn_threadpoolWorker));
         if(thread == NULL){continue;}
+
+        // set default value.
         thread->gotThplWork = false;
         thread->parent = thpl;
-        thread->threadid = i;
+        thread->threadid = thpl->lastThreadId++;
+
+        // Creating new thread
         int rc = pthread_create(&thread->thread_t, &thpl->threadAttr, threadWork, (void *)thread);
         if(rc)
         {
+            // something wrong with creating thread. set return code to 1 (acceptable).
             retCode = 1;
-            #ifdef CN_DEBUG_MODE_CNTHREAD_H
+            #if CN_DEBUG_MODE_CNTHREAD_H_LVL >= 5
             cn_log("pthread_create threadpool make error code %d", rc);
-            #endif // CN_DEBUG_MODE_CNTHREAD_H
+            #endif // CN_DEBUG_MODE_CNTHREAD_H_LVL
         }
         else
         {
-            #ifdef CN_DEBUG_MODE_CNTHREAD_H
+            #if CN_DEBUG_MODE_CNTHREAD_H_LVL >= 5
             cn_log("pthread_create called for threadid %d ptr %d\n", thread->threadid, (int)thread);
-            #endif // CN_DEBUG_MODE_CNTHREAD_H
+            #endif // CN_DEBUG_MODE_CNTHREAD_H_LVL
         }
+
+        // append the new worker thread to threadpool worker list.
         cn_listAppend(thpl->threads, thread);
-        #ifdef CN_DEBUG_MODE_CNTHREAD_H
-        cn_log("pthread append called for threadid %d ptr %d\n", thread->threadid, (int)thread);
-        #endif // CN_DEBUG_MODE_CNTHREAD_H
     }
+    // if the worker count doesn't increase at all, set return code to -1 (failure).
+    if(lastWorkerCnt >= thpl->threads->cnt){retCode = -1;}
+
+    // unlock the threadpool worker list.
+    pthread_mutex_unlock(&thpl->threadWorkerListKey);
+
+    // return execution status
     return retCode;
 }
 
-// Increase the number of thread from a threadpool by incCnt, wait until increment done.
+/**
+    * Increase threadpool worker.
+    * @param thpl : target threadpool.
+    * @param incCnt : how much worker to add.
+    * return 0 fine, 1 acceptable, -1 failure.
+    */
 int cn_thplIncWorker(cn_threadpool *thpl, int incCnt)
 {
-    struct ThplIncWorkerTrueWorkArgs *args = malloc(sizeof(struct ThplIncWorkerTrueWorkArgs));
+    // Defensive code.
+    if(thpl == NULL || incCnt < 0){return -1;}
+
+    // Prepare the argument
+    struct ThplIncWorkerRealWorkArgs *args = malloc(sizeof(struct ThplIncWorkerRealWorkArgs));
     if(args == NULL){return -1;}
     args->thpl = thpl;
     args->incCnt = incCnt;
-    return ThplIncWorkerTrueWork(args);
+
+    // execute the real work.
+    return ThplIncWorkerRealWork(args);
 }
 
-// Increase the number of thread from a threadpool by incCnt, wait until increment done.
+/**
+    * Increase threadpool worker Asynchronously.
+    * @param thpl : target threadpool.
+    * @param incCnt : how much worker to add.
+    * @param callback : the action to do after task complete in any condition.
+    */
 int cn_thplIncWorkerAsync(cn_threadpool *thpl, int incCnt, cn_action *callback)
 {
-    struct ThplIncWorkerTrueWorkArgs *incWorkArgs = malloc(sizeof(struct ThplIncWorkerTrueWorkArgs));
+    // Defensive code.
+    if(thpl == NULL || incCnt < 0){return -1;}
+
+    // Prepare the arguments
+    struct ThplIncWorkerRealWorkArgs *incWorkArgs = malloc(sizeof(struct ThplIncWorkerRealWorkArgs));
     if(incWorkArgs == NULL){return -1;}
     incWorkArgs->thpl = thpl;
     incWorkArgs->incCnt = incCnt;
     struct asyncThreadArgs *args = malloc(sizeof(struct asyncThreadArgs));
     if(args == NULL){return -1;}
-    args->syncTask = ThplIncWorkerTrueWork;
+    args->syncTask = ThplIncWorkerRealWork;
     args->args = incWorkArgs;
     args->callback = callback;
+
+    // return real work new thread execution status
     return pthread_create(&args->tid, NULL, asyncThread, (void *)args);
 }
 
-// argument warper for ThplDecWorkerTrueWork
-struct ThplDecWorkerTrueWorkArgs
+/**
+    * Argument structure for ThplDecWorkerRealWork function.
+    */
+struct ThplDecWorkerRealWorkArgs
 {
-    cn_threadpool *thpl;
-    int decCnt;
+    cn_threadpool *thpl; // target threadpool
+    int decCnt; // how much thread to subtract
 };
 
-// The core of every threadpool worker decrement.
-static int ThplDecWorkerTrueWork(void *args)
+/**
+    * Decrease threadpool worker
+    * @param args : argument structure of ThplDecWorkerRealWorkArgs
+    * return 0 for fine, and -1 for failure.
+    */
+static int ThplDecWorkerRealWork(void *args)
 {
-    //Parameter proccessing
-    struct ThplDecWorkerTrueWorkArgs *targs = args;
+    // Parse the argument
+    struct ThplDecWorkerRealWorkArgs *targs = args;
     cn_threadpool *thpl = targs->thpl;
     int decCnt = targs->decCnt;
+
+    // deallocate argument envelope
     free(args);
 
-    #ifdef CN_DEBUG_MODE_CNTHREAD_H
-    int debug = 1;
-    cn_log("cnthread DEBUG cn_thplDecWorker arg thpl %d decCnt %d phase %d\n", (int)thpl, decCnt, debug++);
-    #endif // CN_DEBUG_MODE_CNTHREAD_H
+    // Defensive code.
     if(thpl == NULL || decCnt < 0){return -1;}
-    //Make list of thread that's not doing job to be terminated.
-    cn_list *threadRunning = cn_makeList("cn_thplDecWorker.threadRunning", sizeof(cn_thread), decCnt, true);
-    cn_list *threadIddling = cn_makeList("cn_thplDecWorker.threadIddling", sizeof(cn_thread), decCnt, true);
+    if(decCnt > thpl->threads->cnt)
+    {
+        // the decrement count is higher than worker count
+        // set decrement count by worker count
+        decCnt = thpl->threads->cnt;
+    }
+
+    //Make list of thread that's not doing job to be terminated. defensively.
+    cn_list *threadRunning = cn_makeList("cn_thplDecWorker.threadRunning", sizeof(cn_threadpoolWorker), decCnt, true);
+    cn_list *threadIddling = cn_makeList("cn_thplDecWorker.threadIddling", sizeof(cn_threadpoolWorker), decCnt, true);
+    if(threadRunning == NULL || threadIddling == NULL){return -1;}
+
+    // declare iterator
     int i;
-    pthread_mutex_lock(&thpl->key);
-    cn_thread **threads = cn_listGet(thpl->threads, 0);
+
+    // lock the worker list, and job queue
+    pthread_mutex_lock(&thpl->threadWorkerListKey);
+    pthread_mutex_lock(&thpl->jobsKey);
+
+    // get the array of worker pointer.
+    cn_threadpoolWorker **threads = cn_listGet(thpl->threads, 0);
     for(i = 0; i < thpl->threads->cnt; i++)
     {
         if(!threads[i]->gotThplWork)
         {
+            // this worker is not doing a job. lets give it termination sign.
+            // and add it to the iddling worker list
             cn_listAppend(threadIddling, threads[i]);
             threads[i]->running = false;
-            if(threadIddling->cnt >= decCnt){break;}
+            if(threadIddling->cnt >= decCnt)
+            {
+                // break the loop for signaling termination because, has sufficent to decCnt
+                break;
+            }
         }
         else
         {
+            // this worker is doing a job. add to running worker list
             cn_listAppend(threadRunning, threads[i]);
         }
     }
     if(decCnt > threadIddling->cnt)
     {
-        cn_thread **threadRunningB = (cn_thread **)threadRunning->b;
+        // seems like by terminating the iddling worker alone is not sufficent to decCnt
+        // lets terminate some of the running worker.
+
+        // get the array of running worker pointer.
+        cn_threadpoolWorker **threadRunningB = (cn_threadpoolWorker **)threadRunning->b;
+
+        // count how much we need to take from running worker
         int leftToTerminate = decCnt - threadIddling->cnt;
-        if(leftToTerminate > threadRunning->cnt){leftToTerminate = threadRunning->cnt;}
         for(i = 0; i < leftToTerminate; i++)
         {
+            // give the running thread termination sign.
             threadRunningB[i]->running = false;
         }
     }
-    #ifdef CN_DEBUG_MODE_CNTHREAD_H
-    cn_log("cnthread DEBUG cn_thplDecWorker finised set worker running false phase %d\n", debug++);
-    #endif // CN_DEBUG_MODE_CNTHREAD_H
-    pthread_mutex_unlock(&thpl->key);
-    bool *keepFlushing = malloc(sizeof(bool));
-    if(keepFlushing == NULL){return -1;}
-    *keepFlushing = true;
-    struct EndTryAttemptArgs *endTryArgs = malloc(sizeof(struct EndTryAttemptArgs));
-    endTryArgs->trigg = keepFlushing;
+    // unlock the worker list and jobs queue.
+    pthread_mutex_unlock(&thpl->jobsKey);
+    pthread_mutex_unlock(&thpl->threadWorkerListKey);
+
+    // declare endTryAttempt Function trigger, defensively.
+    bool *stopFlushing = malloc(sizeof(bool));
+    if(stopFlushing == NULL){return -1;}
+
+    // set the trigger to untriggered
+    *stopFlushing = false;
+
+    // prepare the argument structure for endTryAttempt funciton, defensively.
+    struct endTryAttemptArgs *endTryArgs = malloc(sizeof(struct endTryAttemptArgs));
+    // if fail to allocate, return acceptable error
+    // the thread will be terimated and removed from the workerlist eventually.
+    if(endTryArgs == NULL){return 1;}
+    endTryArgs->trigg = stopFlushing;
     endTryArgs->cancel = false;
-    cn_doDelayedAction(cn_makeAction("cn_thplDecWorker.stopFlusing", EndTryAttempt, endTryArgs, NULL), 30);
+
+    // add endTryAttempt to schedule.
+    cn_doDelayedAction(cn_makeAction("cn_thplDecWorker.stopFlusing", endTryAttempt, endTryArgs, NULL), 30);
+
+    // declare the next worker count
     int nextThreadsCount = thpl->threads->cnt - decCnt;
     if(nextThreadsCount < 0){nextThreadsCount = 0;}
+
+    // declare try attempt counter.
     int tryAttempt = 0;
-    while(*keepFlushing == true)
+    while(*stopFlushing == false)
     {
+        #if CN_DEBUG_MODE_CNTHREAD_H_LVL >= 10
+        cn_log("keep flush %d cnthread DEBUG cn_thplDecWorker begining flush at try attempt %d, cnt %d target %d\n", *stopFlushing, tryAttempt, thpl->threads->cnt, nextThreadsCount);
+        #endif // CN_DEBUG_MODE_CNTHREAD_H_LVL
+
+        // increment try attempt count
         tryAttempt++;
-        #ifdef CN_DEBUG_MODE_CNTHREAD_H
-        cn_log("keep flush %d cnthread DEBUG cn_thplDecWorker begining flush at try attempt %d, cnt %d target %d\n", *keepFlushing, tryAttempt, thpl->threads->cnt, nextThreadsCount);
-        #endif // CN_DEBUG_MODE_CNTHREAD_H
-        pthread_mutex_lock(&thpl->key);
+
+        // lock the jobs queue
+        pthread_mutex_lock(&thpl->jobsKey);
         for(i = 0; i < (thpl->threads->cnt * 5); i++)
         {
-            pthread_cond_signal(&thpl->cond);
+            // signal worker that condition has changed
+            pthread_cond_signal(&thpl->jobsCond);
         }
-        pthread_mutex_unlock(&thpl->key);
+        // unlock the jobs queue
+        pthread_mutex_unlock(&thpl->jobsKey);
+
+        // let other thread run, wait for 20ms
         cn_sleep(20);
         if(nextThreadsCount >= thpl->threads->cnt)
         {
-            #ifdef CN_DEBUG_MODE_CNTHREAD_H
+            #if CN_DEBUG_MODE_CNTHREAD_H_LVL >= 10
             cn_log("cnthread DEBUG cn_thplDecWorker complete flush at try attempt %d\n", tryAttempt);
-            #endif // CN_DEBUG_MODE_CNTHREAD_H
+            #endif // CN_DEBUG_MODE_CNTHREAD_H_LVL
+            // flush has completed.
             break;
         }
+        // take controll back after 20ms, but flush is not complete, retry.
     }
-    if(*keepFlushing == true){endTryArgs->cancel = true;}
-    free(keepFlushing);
-    #ifdef CN_DEBUG_MODE_CNTHREAD_H
-    cn_log("cnthread DEBUG cn_thplDecWorker phase %d\n", debug++);
-    #endif // CN_DEBUG_MODE_CNTHREAD_H
+
+    if(*stopFlushing == true)
+    {
+        // because operation complete before endTryAttempt Func pull trigger.
+        // tell it to not pull the trigger. because we will dealloc the trigger here.
+        endTryArgs->cancel = true;
+    }
+    // dealloc endTryAttempt trigger
+    free(stopFlushing);
+
+    // destroy temporary worker list.
     cn_desList(threadRunning);
     cn_desList(threadIddling);
-    #ifdef CN_DEBUG_MODE_CNTHREAD_H
-    cn_log("cnthread DEBUG cn_thplDecWorker phase %d\n", debug++);
-    #endif // CN_DEBUG_MODE_CNTHREAD_H
+
+    // return fine
     return 0;
 }
 
-// Decrease the number of thread from a threadpool by decCnt, wait until decrement done.
+/**
+    * Decrease threadpool worker
+    * @param thpl : target threadpool.
+    * @param decCent : how much worker to subtract.
+    */
 int cn_thplDecWorker(cn_threadpool *thpl, int decCnt)
 {
-    struct ThplDecWorkerTrueWorkArgs *args = malloc(sizeof(struct ThplDecWorkerTrueWorkArgs));
+    // Defensive code.
+    if(thpl == NULL || decCnt < 0){return -1;}
+
+    // Prepare argument structure
+    struct ThplDecWorkerRealWorkArgs *args = malloc(sizeof(struct ThplDecWorkerRealWorkArgs));
     if(args == NULL){return -1;}
     args->thpl = thpl;
     args->decCnt = decCnt;
-    return ThplDecWorkerTrueWork(args);
+
+    // return real work execution status
+    return ThplDecWorkerRealWork(args);
 }
 
-// Decrease the number of thread from a threapool by decCnt Asynchoronously
-// then execute callback when it complete.
+/**
+    * Decrease threadpool worker Asynchronously, execute callback when it finished.
+    * @param thpl : target threadpool.
+    * @param decCnt : how much worker to subtract.
+    * @param callback : the action to do after task complete in any condition.
+    */
 int cn_thplDecWorkerAsync(cn_threadpool *thpl, int decCnt, cn_action *callback)
 {
+    // Defensive code
     if(thpl == NULL || decCnt < 1){return -1;}
-    struct ThplDecWorkerTrueWorkArgs *decWorkerArgs = malloc(sizeof(struct ThplDecWorkerTrueWorkArgs));
+
+    // Prepare argument structure
+    struct ThplDecWorkerRealWorkArgs *decWorkerArgs = malloc(sizeof(struct ThplDecWorkerRealWorkArgs));
     if(decWorkerArgs == NULL){return -1;}
     decWorkerArgs->thpl = thpl;
     decWorkerArgs->decCnt = decCnt;
     struct asyncThreadArgs *args = malloc(sizeof(struct asyncThreadArgs));
     if(args == NULL){return -1;}
-    args->syncTask = ThplDecWorkerTrueWork;
+    args->syncTask = ThplDecWorkerRealWork;
     args->args = decWorkerArgs;
     args->callback = callback;
+
+    // return real work new thread execution status
     return pthread_create(&args->tid, NULL, asyncThread, (void *)args);
 }
 
-
-struct desThplTrueWorkArgs
+/**
+    * Argument structure for desThplRealWork function.
+    */
+struct desThplRealWorkArgs
 {
-    cn_threadpool *thpl;
-    cn_syncFuncPTR itemDestructor;
+    cn_threadpool *thpl; // target threadpool
+    cn_syncFuncPTR itemDestructor; // jobs item destructor
 };
 
-static int desThplTrueWork(void *args)
+/**
+    * Destruc threadpool object.
+    * all jobs will be canceled, and worker will be terminated.
+    * @param args : argument structure of desThplRealWorkArgs
+    */
+static int desThplRealWork(void *args)
 {
-    struct desThplTrueWorkArgs *targs = args;
+    // Parse the argument.
+    struct desThplRealWorkArgs *targs = args;
     cn_threadpool *thpl = targs->thpl;
     cn_syncFuncPTR itemDestructor = targs->itemDestructor;
+
+    // dealloc argument envelope
     free(args);
-    #if CN_DEBUG_MODE_CNTHREAD_H_LVL >= 5
+
+    //defensive code
+    if(thpl == NULL){return -1;}
+
+    #if CN_DEBUG_MODE_CNTHREAD_H_LVL >= 10
     cn_log("desThplTrueWprl started for %d with worker count %d.\n", (int)thpl, thpl->threads->cnt);
     #endif // CN_DEBUG_MODE_CNTHREAD_H_LVL
-    int n = -1;
+
+    // declare execution status
+    int n;
+
+    // cancel all waiting jobs
     n = cn_thplCancelAll(thpl);
-    if(n != 0){return n;}
+    if(n < 0){return n;}
+
+    // terminate all worker
     n = cn_thplDecWorker(thpl, thpl->threads->cnt);
-    #if CN_DEBUG_MODE_CNTHREAD_H_LVL >= 5
+    #if CN_DEBUG_MODE_CNTHREAD_H_LVL >= 10
     cn_log("desThplTrueWprl after decwork.\n");
     #endif // CN_DEBUG_MODE_CNTHREAD_H_LVL
-    if(n != 0){return n;}
-    #if CN_DEBUG_MODE_CNTHREAD_H_LVL >= 5
-    cn_log("desThplTrueWprl before deslist.\n");
-    #endif // CN_DEBUG_MODE_CNTHREAD_H_LVL
+    if(n < 0){return n;}
+
+    // destruct worker list
     n = cn_desList(thpl->threads);
-    if(n != 0){return n;}
-    #if CN_DEBUG_MODE_CNTHREAD_H_LVL >= 5
+    #if CN_DEBUG_MODE_CNTHREAD_H_LVL >= 10
     cn_log("desThplTrueWprl after deslist.\n");
     #endif // CN_DEBUG_MODE_CNTHREAD_H_LVL
+    if(n < 0){return n;}
+
+    // destruct jobs queue
     n = cn_desQue(thpl->actions, itemDestructor);
     if(n != 0){return n;}
-    pthread_mutex_destroy(&thpl->key);
-    pthread_mutex_destroy(&thpl->terminatorKey);
-    pthread_cond_destroy(&thpl->cond);
+
+    // destroy all keys and condition
+    pthread_mutex_destroy(&thpl->jobsKey);
+    pthread_mutex_destroy(&thpl->threadWorkerListKey);
+    pthread_cond_destroy(&thpl->jobsCond);
     #if CN_DEBUG_MODE_CNTHREAD_H_LVL >= 1
     cn_log("desThplTrueWprl finished for %s with worker count %d. GOODBYE.\n", thpl->refname, thpl->threads->cnt);
     #endif // CN_DEBUG_MODE_CNTHREAD_H_LVL
+
+    // finnaly dealloc threadpool structure.
     free(thpl);
 
+    //return fine.
     return 0;
 }
 
+/**
+    * Destruc threadpool object.
+    * all jobs will be canceled, and worker will be terminated.
+    * @param thpl : target threadpool
+    * return 0 for fine
+    */
 int cn_desThpl(cn_threadpool *thpl)
 {
-    struct desThplTrueWorkArgs *targs = malloc(sizeof(struct desThplTrueWorkArgs));
+    struct desThplRealWorkArgs *targs = malloc(sizeof(struct desThplRealWorkArgs));
     targs->thpl = thpl;
     targs->itemDestructor = cn_desActionNumerableInterface;
-    return desThplTrueWork(targs);
+    return desThplRealWork(targs);
 }
 
+/**
+    * Destruc threadpool object.
+    * all jobs will be canceled, and worker will be terminated.
+    * @param thpl : target threadpool.
+    * @param callback : the action to do after task complete in any condition.
+    */
 int cn_desThplAsync(cn_threadpool *thpl, cn_action *callback)
 {
-    struct desThplTrueWorkArgs *targs = malloc(sizeof(struct desThplTrueWorkArgs));
+    // Defensive code
+    if(thpl == NULL){return -1;}
+
+    // Prepare argument structure
+    struct desThplRealWorkArgs *targs = malloc(sizeof(struct desThplRealWorkArgs));
     if(targs == NULL){return -1;}
     targs->thpl = thpl;
     targs->itemDestructor = cn_desActionNumerableInterface;
     struct asyncThreadArgs *args = malloc(sizeof(struct asyncThreadArgs));
     if(args == NULL){return -1;}
-    args->syncTask = desThplTrueWork;
+    args->syncTask = desThplRealWork;
     args->args = targs;
     args->callback = callback;
+
+    // return real work new thread execution status
     return pthread_create(&args->tid, NULL, asyncThread, (void *)args);
 }
 
