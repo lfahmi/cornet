@@ -3,3 +3,4 @@
 #include "cornet/cnsched.h"
 #include "cornet/cnnum.h"
 #include "cornet/cnthread.h"
+#include "cornet/cornet.h"

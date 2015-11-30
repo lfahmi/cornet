@@ -17,7 +17,7 @@
 int cnt, lastcnt;
 int recIndex;
 struct timespec start, end;
-unsigned long mtime, secs, usecs;
+int mtime, secs, usecs;
 
 void *printer(void *arg)
 {
@@ -70,10 +70,17 @@ void printElapsed()
 {
     clock_gettime(CLOCK_MONOTONIC, &end);
     secs  = end.tv_sec  - start.tv_sec;
-    usecs = end.tv_nsec - start.tv_nsec;
+    if(secs > 0)
+    {
+        usecs = end.tv_nsec + (1000000000 - start.tv_nsec);
+    }
+    else
+    {
+        usecs = end.tv_nsec - start.tv_nsec;
+    }
     //mtime = ((secs) * 1000 + usecs/1000000.0) + 0.5;
     double ops = (double)(cnt - lastcnt) / secs;
-    printf(">%d Elapsed time: %lu sec, nsec %lu, cnt %d opration per sec %f priode %fus\n", recIndex++, secs, usecs, cnt - lastcnt, ops, (1/ops) * 1000000);
+    printf(">%d Elapsed time: %d sec, nsec %d, cnt %d opration per sec %f priode %fus\n", recIndex++, secs, usecs, cnt - lastcnt, ops, (1/ops) * 1000000);
     lastcnt = cnt;
     start = end;
 }
@@ -87,6 +94,8 @@ void dominic(int *ptra)
 
 int main(int argc, char *argv[])
 {
+    cn_action *act = cn_makeAction("test", NULL, NULL, NULL);
+    printf("t=%d,f=%d, self=%d arg=%d cancel=%d\n", true, false, act->callSelfDestructor, act->callArgsDestructor, act->cancel);
     pthread_mutex_t key;
     pthread_mutex_init(&key,NULL);
     pthread_mutex_lock(&key);
@@ -129,9 +138,10 @@ int main(int argc, char *argv[])
     printElapsed();
     cn_log("tp address %d\n\n", (int)tp);
     pthread_mutex_lock(&tp->jobsKey);
+    cn_action *job = cn_makeAction("printer", printer, (void *)i, NULL);
+    job->callSelfDestructor = false;
     for(i = 0; i < 3000000; i++)
     {
-        cn_action *job = cn_makeAction("printer", printer, (void *)i, NULL);
         //cn_thplEnq(tp, job);
         cn_queEn(tp->actions, job);
         pthread_cond_signal(&tp->jobsCond);
@@ -145,12 +155,12 @@ int main(int argc, char *argv[])
     {
         cn_thplEnq(tp, cn_makeAction("printer", printer, (void *)i, NULL));
     }
-    cn_sleep(5000);
+    cn_sleep(20000);
     printElapsed();
     cn_desThplAsync(tp, NULL);
     printElapsed();
     printf("sizeof sec %d, nsec %d\n", sizeof(end.tv_sec), sizeof(end.tv_nsec));
-    cn_sleep(20000);
+    cn_sleep(2000);
 
     return 0;
 }

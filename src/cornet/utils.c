@@ -64,12 +64,14 @@ cn_ip4 *cn_createip4(cn_ip4 *target, unsigned int *a)
     return result;
 }
 
-cn_buffer *cn_createBuffer(uint16_t _size, uint16_t len)
+cn_buffer *cn_createBuffer(uint16_t perSize, uint16_t length)
 {
     cn_buffer *result = malloc(sizeof(cn_buffer));
-    result->b = malloc(len * _size);
-    result->perSize = _size;
-    result->len = len;
+    result->b = malloc(length * perSize);
+    result->workb = result->b;
+    result->perSize = perSize;
+    result->length = 0;
+    result->capacity = length;
     return result;
 }
 

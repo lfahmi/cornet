@@ -6,10 +6,12 @@
 #include <string.h>
 #include <netinet/in.h>
 #include <pthread.h>
-#include <corlis.h>
+#include "cornet/cnthread.h"
 
 #define CN_SIZEOF_IP4STRLEN
 #define CN_IP4STRLEN 16
+
+typedef int (*cn_sockPacketHandler)(void *packet);
 
 typedef struct
 {
@@ -30,25 +32,25 @@ typedef struct
     cn_ip4 ip4;
     int sock;
     struct sockaddr_in addr;
-    cn_list *recvHandlers;
+    cn_sockPacketHandler handler;
 } cn_sock;
 
 typedef struct
 {
     char *b;
-    unsigned short perSize;
-    unsigned short len;
+    char *workb;
+    uint16_t perSize;
+    uint16_t length;
+    uint16_t capacity;
 } cn_buffer;
 
 typedef struct
 {
-    cn_buffer *buffer;
+    cn_sock *listener;
     struct sockaddr_in from;
     socklen_t fromlen;
-} cn_netPacket;
-
-
-typedef void (*cn_sockHandler)(cn_sock *listener, cn_netPacket *pack);
+    cn_buffer *buffer;
+} cn_udpPacket;
 
 /*
 Create IPv4 binary type from string.
@@ -60,13 +62,13 @@ extern char *cn_ip4tos(char CN_SIZEOF_IP4STRLEN *__dest, unsigned int __s);
 
 extern cn_ip4 *cn_createip4(cn_ip4 *target, unsigned int *a);
 
-extern cn_buffer *cn_createBuffer(uint16_t _size, uint16_t len);
+extern cn_buffer *cn_createBuffer(uint16_t perSize, uint16_t length);
 
 extern void cn_desBuffer(cn_buffer *target);
 
 
 //MAIN.C
 
-extern int cn_startUDPListener(cn_sock *fd, char *__ip4, uint16_t port, uint32_t bufferSize);
+extern int cn_startUDPListener(cn_sock *fd, char *__ip4, uint16_t port, uint32_t bufferSize, cn_sockPacketHandler handler);
 
 #endif

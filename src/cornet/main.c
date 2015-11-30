@@ -7,33 +7,24 @@ typedef struct
     pthread_t threadId;
 } cn_privListnerArg;
 
-int cn_privNotifyPack(cn_sock *listenerFd, cn_netPacket *pack)
-{
-    pthread_mutex_lock(&(*listenerFd->recvHandlers).key);
-    cn_sockHandler *handlers = *(*listenerFd->recvHandlers).b;
-    uint32_t *cnt = &(*listenerFd->recvHandlers).cnt;
-    int i;
-    for(i = 0; i < *cnt; i++)
-    {
-        handlers[i](listenerFd, pack);
-    }
-    pthread_mutex_unlock(&(*listenerFd->recvHandlers).key);
-    return 0;
-}
-
-void *cn_privlistener(void *arg)
+static void *cn_privlistener(void *arg)
 {
     cn_privListnerArg *targ = arg;
+    uint16_t bufferSize = targ->bufferSize;
+    cn_sockPacketHandler handler = targ->fd->handler;
+    int listenfd = targ->fd->sock;
     while(1)
     {
-        cn_netPacket *pack = malloc(sizeof(cn_netPacket));
-        pack->buffer = cn_createBuffer(1, targ->bufferSize);
+        cn_udpPacket *pack = malloc(sizeof(cn_udpPacket));
+        pack->listener = targ->fd;
         pack->fromlen = sizeof(struct sockaddr_in);
-        char *buff = (*pack->buffer).b;
-        uint16_t *len = &(*pack->buffer).len;
-        *len = recvfrom((*targ->fd).sock, buff, targ->bufferSize, 0, (struct sockaddr *)&pack->from, &pack->fromlen);
+        pack->buffer = cn_createBuffer(1, bufferSize);
+        uint16_t *len = &pack->buffer->length;
+        *len = recvfrom(listenfd, pack->buffer->b, bufferSize, 0, (struct sockaddr *)&pack->from, &pack->fromlen);
         if(*len > 3)
         {
+            handler(pack);
+            /*
             char lastByte = buff[*len - 1];
             if(buff[0] == 127 && lastByte == 127)
             {
@@ -48,15 +39,17 @@ void *cn_privlistener(void *arg)
                 else if(buff[1] == 404)
                 {}
             }
+            */
         }
         else
         {
             continue;
         }
     }
+    return NULL;
 }
 
-int cn_startUDPListener(cn_sock *fd, char *__ip4, uint16_t port, uint32_t bufferSize)
+int cn_startUDPListener(cn_sock *fd, char *__ip4, uint16_t port, uint32_t bufferSize, cn_sockPacketHandler handler)
 {
     if(fd == NULL) {return -1;}
     bzero(fd, sizeof(fd));
@@ -69,17 +62,11 @@ int cn_startUDPListener(cn_sock *fd, char *__ip4, uint16_t port, uint32_t buffer
     {
         return -1;
     }
-    fd->recvHandlers = cn_makeList(sizeof(cn_sockHandler), 10);
+    fd->handler = handler;
     cn_privListnerArg *arg = malloc(sizeof(cn_privListnerArg));
     arg->bufferSize = bufferSize;
     arg->fd = fd;
     arg->threadId = fd->listenerThreadId;
     pthread_create(&fd->listenerThreadId, 0, cn_privlistener, (void *)arg);
     return 0;
-}
-
-int cn_attachUDPHandler(cn_sock *fd, cn_sockHandler action)
-{
-    cn_sock *sock= fd;
-    return cn_listAppend(sock->recvHandlers, action);
 }

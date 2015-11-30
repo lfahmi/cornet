@@ -5,6 +5,20 @@
 #endif // CN_DEBUG_MODE_CNTYPE_H_LVL
 
 /**
+    * Default value for the first time cn_action created.
+    */
+static cn_action actionDefaultValue =
+{
+    .refname = NULL,
+    .funcptr = NULL,
+    .argsDestructor = NULL,
+    .args = NULL,
+    .callSelfDestructor = true,
+    .callArgsDestructor = true,
+    .cancel = false
+};
+
+/**
     * Make action object.
     * Return cn_action object if successful,
     * otherwise return NULL.
@@ -19,6 +33,9 @@ cn_action *cn_makeAction(const char *refname, cn_voidFunc funcptr, void *args, c
     cn_action *result = malloc(sizeof(cn_action));
     if(result == NULL){return NULL;}
 
+    // Set default value
+    *result = actionDefaultValue;
+
     // Set reference name
     result->refname = refname;
 
@@ -26,9 +43,8 @@ cn_action *cn_makeAction(const char *refname, cn_voidFunc funcptr, void *args, c
     // and cancelation status pointer
     result->funcptr = funcptr;
     result->argsDestructor = argsDestructor;
-    result->dontCallDestructor = false;
     result->args = args;
-    result->cancel = false;
+
     // cn_action creation has done, return result.
     return result;
 }
@@ -42,11 +58,11 @@ int cn_desAction(cn_action *action)
 {
     // If action is not null then Dealloc cn_action type
     // crash potential.
-    if(action != NULL)
+    if(action != NULL && action->callSelfDestructor)
     {
         // If argument objects destructor is not null and args is not null
         // then execute argument objects destructor.
-        if(!action->dontCallDestructor && action->argsDestructor != NULL && action->args != NULL)
+        if(action->callArgsDestructor && action->argsDestructor != NULL && action->args != NULL)
         {
             action->argsDestructor(action->args);
         }

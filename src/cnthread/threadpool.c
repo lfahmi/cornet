@@ -14,7 +14,7 @@ struct asyncThreadArgs
 /**
     * A Sync Task Warping Frame, make it Async Task
     */
-void *asyncThread(void *args)
+static void *asyncThread(void *args)
 {
     // Parse the arguments
     struct asyncThreadArgs *arguments = args;
@@ -140,14 +140,14 @@ static void *threadWork(void *arg)
                 // set the thread activity to got work, add wokringTask
                 // counter by one and do the job.
                 *gotThplWork = true;
-                workingThread++;
+                *workingThread += 1;
                 #if CN_DEBUG_MODE_CNTHREAD_H_LVL >= 10
                 cn_log("thread %d got work\n", (int)thread->threadid);
                 #endif // CN_DEBUG_MODE_CNTHREAD_H_LVL
                 work->funcptr(work->args);
 
                 // we are done working. subtract the workingThread by one.
-                *workingThread--;
+                *workingThread -= 1;
             }
             // call the job destructor
             cn_desAction(work);

@@ -37,12 +37,17 @@ typedef struct
         each kind of function that require operational object. */
     void *args;
 
+    /*  in case that your action is used frequently
+        and you are still using the same argument.
+        you dont need to make each action for each operation */
+    bool callSelfDestructor; // Default value: true
+
     /*  This is bad to do. you should destruct your arguments
         in the argsDestructor and never do it yourself inside
         the funcptr. but in such emergency case, here is a bool
         to prevent action destructor to call args destructor to
         prevent crash by double free. */
-    bool dontCallDestructor;
+    bool callArgsDestructor; // Default value: true
     bool cancel;
 } cn_action;
 
