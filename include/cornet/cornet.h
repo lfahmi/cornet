@@ -16,10 +16,10 @@ typedef int (*cn_sockPacketHandler)(void *packet);
 typedef struct
 {
     char initialized;
-    char node1;
-    char node2;
-    char node3;
-    char node4;
+    unsigned char node1;
+    unsigned char node2;
+    unsigned char node3;
+    unsigned char node4;
     char stringIp[16];
     unsigned int intIp;
 } cn_ip4;
@@ -42,6 +42,7 @@ typedef struct
     uint16_t perSize;
     uint16_t length;
     uint16_t capacity;
+    pthread_mutex_t key;
 } cn_buffer;
 
 typedef struct
@@ -56,11 +57,11 @@ typedef struct
 Create IPv4 binary type from string.
 return 0 if failed.
 */
-extern unsigned int cn_stoip4(char *__s);
+extern in_addr_t cn_strToInaddr(char *ip4Str);
 
-extern char *cn_ip4tos(char CN_SIZEOF_IP4STRLEN *__dest, unsigned int __s);
+extern int cn_inaddrToStr(char CN_SIZEOF_IP4STRLEN *__dest, in_addr_t ip4addrt);
 
-extern cn_ip4 *cn_createip4(cn_ip4 *target, unsigned int *a);
+extern int cn_createip4(cn_ip4 *target, in_addr_t *a);
 
 extern cn_buffer *cn_createBuffer(uint16_t perSize, uint16_t length);
 

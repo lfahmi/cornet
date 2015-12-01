@@ -16,17 +16,22 @@
 
 /* Scheduler Section */
 
+extern cn_type_id_t cn_sched_type_id;
+
 /**
     * cn_sched definition, scheduler object type
     */
-typedef struct
+struct cn_sched
 {
+    cn_type t;
     const const char *refname;
     cn_action *action;
     struct timespec lastExecution;
     struct timespec nextExecution;
     struct timespec interval;
-} cn_sched;
+};
+
+typedef struct cn_sched cn_sched;
 
 #include "cornet/cndebug.h"
 

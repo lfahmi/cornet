@@ -21,40 +21,24 @@ static void *cn_privlistener(void *arg)
         pack->buffer = cn_createBuffer(1, bufferSize);
         uint16_t *len = &pack->buffer->length;
         *len = recvfrom(listenfd, pack->buffer->b, bufferSize, 0, (struct sockaddr *)&pack->from, &pack->fromlen);
-        if(*len > 3)
-        {
-            handler(pack);
-            /*
-            char lastByte = buff[*len - 1];
-            if(buff[0] == 127 && lastByte == 127)
-            {
-                if(buff[1] == 200)
-                {
-                    cn_privNotifyPack(targ->fd, pack);
-                }
-                else if(buff[1] == 199)
-                {}
-                else if(buff[1] == 205)
-                {}
-                else if(buff[1] == 404)
-                {}
-            }
-            */
-        }
-        else
-        {
-            continue;
-        }
+        handler(pack);
     }
     return NULL;
 }
 
-int cn_startUDPListener(cn_sock *fd, char *__ip4, uint16_t port, uint32_t bufferSize, cn_sockPacketHandler handler)
+int cn_startUDPListener(cn_sock *fd, char *ip4Str, uint16_t port, uint32_t bufferSize, cn_sockPacketHandler handler)
 {
     if(fd == NULL) {return -1;}
     bzero(fd, sizeof(fd));
     fd->sock = socket(AF_INET, SOCK_DGRAM, 0);
-    fd->addr.sin_addr.s_addr = cn_stoip4(__ip4);
+    if(cn_bitcompare(ip4Str, "0.0.0.0", 7))
+    {
+        fd->addr.sin_addr.s_addr = INADDR_ANY;
+    }
+    else
+    {
+        fd->addr.sin_addr.s_addr = cn_strToInaddr(ip4Str);
+    }
     if(fd->addr.sin_addr.s_addr == 0) {return -1;}
     fd->addr.sin_family = AF_INET;
     fd->addr.sin_port = htons(port);

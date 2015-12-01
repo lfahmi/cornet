@@ -2,6 +2,8 @@
 #define _CNTYPE_H 1
 #include <stdbool.h>
 #include <stdlib.h>
+#include <string.h>
+#include <netinet/in.h>
 
 /**
     * cn_syncFuncPTR type, a function pointer that take pointer
@@ -15,15 +17,37 @@ typedef int (*cn_syncFuncPTR)(void *args);
     */
 typedef void *(*cn_voidFunc)(void *args);
 
+/* TYPE */
+typedef unsigned char cn_type_space_tag_size_t;
+
+typedef uint64_t cn_type_id_t;
+
+/**   cn_type definition
+    * structure to identify cn object type
+    * and store various object type in one pointer
+    */
+struct cn_type
+{
+    cn_type_space_tag_size_t bof;
+    cn_type_id_t type_id;
+    struct cn_list *objs;
+    pthread_mutex_t key;
+    cn_type_space_tag_size_t eof;
+};
+
+typedef struct cn_type cn_type;
+
 /* ACTION */
 
-/**
-    * cn_action definition.
+extern cn_type_id_t cn_action_type_id;
+
+/**   cn_action definition.
     * NOTE: args wouldn't be automatically deallocated for each
     * function in this library. always deallocate inside funcptr if needed!
     */
-typedef struct
+struct cn_action
 {
+    cn_type t;
     const char *refname;
     cn_voidFunc funcptr;
 
@@ -49,13 +73,32 @@ typedef struct
         prevent crash by double free. */
     bool callArgsDestructor; // Default value: true
     bool cancel;
-} cn_action;
+};
+
+typedef struct cn_action cn_action;
 
 #include "cornet/cndebug.h"
 #undef CN_DEBUG_MODE_CNTYPE_H_LVL
 #define CN_DEBUG_MODE_CNTYPE_H_LVL 1
 #undef CN_DEBUG_MODE_FREE
 #define CN_DEBUG_MODE_FREE 0
+
+/* TYPE */
+
+extern cn_type_id_t cn_typeGetNewID();
+
+extern int cn_typeInit(cn_type *target, cn_type_id_t type_id);
+
+extern int cn_typeAppendObject(void *target, void *object);
+
+extern bool cn_typeIs(void *target, cn_type_id_t type_id);
+
+extern void *cn_typeGet(void *target, cn_type_id_t whatType);
+
+extern int cn_typeRemoveObject(void *target, void *whatType);
+
+extern int cn_typeDestroy(cn_type *target);
+
 
 /* ACTION */
 
@@ -88,4 +131,7 @@ extern int cn_desAction(cn_action *action);
     */
 extern int cn_desActionNumerableInterface(void *args);
 
+#include <cornet/cnnum.h>
+
 #endif
+

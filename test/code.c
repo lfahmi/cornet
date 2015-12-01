@@ -94,8 +94,15 @@ void dominic(int *ptra)
 
 int main(int argc, char *argv[])
 {
+    printf("sizeof pthread_mutex_t %d\n", sizeof(pthread_mutex_t));
     cn_action *act = cn_makeAction("test", NULL, NULL, NULL);
-    printf("t=%d,f=%d, self=%d arg=%d cancel=%d\n", true, false, act->callSelfDestructor, act->callArgsDestructor, act->cancel);
+    cn_list *pls = cn_makeList("pls", 1, 1, false);
+    cn_typeAppendObject(pls, act);
+    cn_action *actparsed = cn_typeGet(pls, cn_action_type_id);
+    printf("ref name of act parsed %s\n", actparsed->refname);
+    cn_list *plsparsed = cn_typeGet(actparsed, cn_list_type_id);
+    printf("ref name of pls parsed %s\n", plsparsed->refname);
+    cn_desAction(actparsed);
     pthread_mutex_t key;
     pthread_mutex_init(&key,NULL);
     pthread_mutex_lock(&key);
@@ -103,7 +110,7 @@ int main(int argc, char *argv[])
     printer(NULL);
     setpriority(PRIO_PROCESS, getpid(), 1);
     clock_gettime(CLOCK_MONOTONIC, &start);
-    cn_doDelayedAction(cn_makeAction("printer", printer, (void *)987, NULL), 10);
+    cn_doDelayedAction(cn_makeAction("printerTROUBLEMATIC", printer, (void *)987, NULL), 10);
     cn_list *mylist = cn_makeList("string opration", sizeof(char), 200, false);
     char mytext[] = "hey my name is [name], you know... [name] mean brain. [name] i love you.";
     cn_listInsertAt(mylist, 0, &mytext, sizeof(mytext));
@@ -137,8 +144,9 @@ int main(int argc, char *argv[])
     cn_threadpool *tp = cn_makeThpl("threadPoolTest", 3);
     printElapsed();
     cn_log("tp address %d\n\n", (int)tp);
+
     pthread_mutex_lock(&tp->jobsKey);
-    cn_action *job = cn_makeAction("printer", printer, (void *)i, NULL);
+    cn_action *job = cn_makeAction("printerRepeated", printer, (void *)i, NULL);
     job->callSelfDestructor = false;
     for(i = 0; i < 3000000; i++)
     {
@@ -147,6 +155,7 @@ int main(int argc, char *argv[])
         pthread_cond_signal(&tp->jobsCond);
     }
     pthread_mutex_unlock(&tp->jobsKey);
+
     cn_thplEnq(tp, cn_makeAction("printTimeDone", (cn_voidFunc)printElapsed, NULL, NULL));
     printf("just done submit jobs\n");
     printElapsed();

@@ -10,10 +10,16 @@
 #define CN_NEVER_USE_THIS_WITH_LIST_APPENDADDRESS
 #define CN_NOT_USED_FOR_LIST_APPENDADDRESS
 
+
+#include "cornet/cntype.h"
+
 /* LIST */
 
-typedef struct
+extern cn_type_id_t cn_list_type_id;
+
+struct cn_list
 {
+    cn_type t;
     const char *refname;
     void **b;
     int blen;
@@ -22,9 +28,13 @@ typedef struct
     int maxCnt;
     bool appendTheAddress;
     pthread_mutex_t key;
-} cn_list;
+};
+
+typedef struct cn_list cn_list;
 
 /* QUEUE */
+
+extern cn_type_id_t cn_queue_type_id;
 
 struct cn_queueNode
 {
@@ -32,8 +42,9 @@ struct cn_queueNode
     struct cn_queueNode *next;
 };
 
-typedef struct
+struct cn_queue
 {
+    cn_type t;
     const char *refname;
     struct cn_queueNode *frontNode;
     struct cn_queueNode *rearNode;
@@ -41,9 +52,9 @@ typedef struct
     int cnt;
     pthread_mutex_t key;
     bool appendTheAddress;
-} cn_queue;
+};
 
-#include "cornet/cntype.h"
+typedef struct cn_queue cn_queue;
 #include "cornet/cndebug.h"
 #include "cornet/cnbitop.h"
 

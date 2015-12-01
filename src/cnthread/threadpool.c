@@ -1,5 +1,24 @@
 #include "cornet/cnthread.h"
 
+/** threadpool type id */
+cn_type_id_t cn_threadpool_type_id = 0;
+
+/**
+    * cn_threadpoolWorker is worker thread for threadpool
+    * each thread will update their status to this object
+    */
+struct cn_threadpoolWorker
+{
+    const char *refname; // variable name
+    pthread_t thread_t; // pthread id
+    bool gotThplWork; // indicating the worker working status
+    bool running; // indicating permision to work
+    uint64_t threadid; // threadpool specified thread id
+    cn_threadpool *parent; // the threadpool that hold this worker
+};
+
+typedef struct cn_threadpoolWorker cn_threadpoolWorker;
+
 /**
     * Argument structure for AsyncThread Function
     */
@@ -128,10 +147,11 @@ static void *threadWork(void *arg)
             }
         }
         // Dequeue job from jobs queue
-        cn_action *work = cn_queDe(actions);
+        cn_action *work = cn_typeGet(cn_queDe(actions), cn_action_type_id);
 
         // Unlock the jobs queue
         pthread_mutex_unlock(key);
+
         if(work != NULL)
         {
             if(!work->cancel && work->funcptr != NULL)
@@ -229,6 +249,12 @@ cn_threadpool *cn_makeThpl(const char *refname, int threadCnt)
     // Increase the cn_threadpoolWorker, defensively.
     if(cn_thplIncWorker(result, threadCnt) < 0){goto reterr2;}
 
+    // if threadpool type has no identifier, request identifier.
+    if(cn_threadpool_type_id < 1){cn_threadpool_type_id = cn_typeGetNewID();}
+
+    // initialize object type definition
+    cn_typeInit(&result->t, cn_threadpool_type_id);
+
     // return Result.
     return result;
 
@@ -256,6 +282,10 @@ cn_threadpool *cn_makeThpl(const char *refname, int threadCnt)
     */
 int cn_thplEnq(cn_threadpool *thpl, cn_action *action)
 {
+    // Defensive code
+    if(thpl == NULL || action == NULL)
+    {return -1;}
+
     // Lock the jobs queue
     pthread_mutex_lock(&thpl->jobsKey);
 
@@ -679,6 +709,9 @@ static int desThplRealWork(void *args)
     #if CN_DEBUG_MODE_CNTHREAD_H_LVL >= 1
     cn_log("desThplTrueWprl finished for %s with worker count %d. GOODBYE.\n", thpl->refname, thpl->threads->cnt);
     #endif // CN_DEBUG_MODE_CNTHREAD_H_LVL
+
+    // Destroy type definition
+    cn_typeDestroy(&thpl->t);
 
     // finnaly dealloc threadpool structure.
     free(thpl);

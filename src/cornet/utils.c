@@ -1,18 +1,19 @@
 #include "cornet/cornet.h"
 
-unsigned int cn_stoip4(char *__s)
+in_addr_t cn_strToInaddr(char *ip4Str)
 {
-    unsigned int result = 0;
+    in_addr_t result = 0;
     char spt = '.';
-    int len = strlen(__s);
-    int i;
+    char len = strlen(ip4Str);
+    if(len > 16){return 0;}
+    char i;
     char tmp[4];
-    int tmpi = 0;
-    int nodeAt = 0;
+    char tmpi = 0;
+    char nodeAt = 0;
     for(i = 0; i < len; i++)
     {
         if(tmpi > 3){ return 0; }
-        char cur = *(__s + i);
+        char cur = *(ip4Str + i);
         if(cur == spt)
         {
             if(nodeAt > 4){return 0;}
@@ -41,27 +42,27 @@ unsigned int cn_stoip4(char *__s)
     return result;
 }
 
-char *cn_ip4tos(char *__dest, unsigned int __s)
+int cn_inaddrToStr(char *__dest, in_addr_t ip4addrt)
 {
+    if(__dest == NULL){return -1;}
     cn_ip4 tmp;
-    cn_ip4 *ip = cn_createip4(&tmp, &__s);
-    strcpy(__dest, ip->stringIp);
-    return __dest;
+    cn_createip4(&tmp, &ip4addrt);
+    strcpy(__dest, tmp.stringIp);
+    return 0;
 }
 
-cn_ip4 *cn_createip4(cn_ip4 *target, unsigned int *a)
+int cn_createip4(cn_ip4 *target, in_addr_t *ip4addrt)
 {
+    if(target == NULL){return -1;}
     cn_ip4 *result = target;
-    //if(result == NULL){return (cn_ip4)-1;}
-    result->node1 = (char)(0xFF&*a);
-    result->node2 = (char)((0xFF00&*a)>>8);
-    result->node3 = (char)((0xFF0000&*a)>>16);
-    result->node4 = (char)((0xFF000000&*a)>>24);
-    result->intIp = *a;
-    //if(result.stringIp == NULL){return -1;}
-    sprintf(result->stringIp, "%hd.%hd.%hd.%hd", (short)result->node1, (short)result->node2, (short)result->node3, (short)result->node4);
+    result->node1 = (char)(0xFF&*ip4addrt);
+    result->node2 = (char)((0xFF00&*ip4addrt)>>8);
+    result->node3 = (char)((0xFF0000&*ip4addrt)>>16);
+    result->node4 = (char)((0xFF000000&*ip4addrt)>>24);
+    result->intIp = *ip4addrt;
+    sprintf(result->stringIp, "%u.%u.%u.%u", result->node1, result->node2, result->node3, result->node4);
     result->initialized = 1;
-    return result;
+    return 0;
 }
 
 cn_buffer *cn_createBuffer(uint16_t perSize, uint16_t length)
@@ -72,11 +73,13 @@ cn_buffer *cn_createBuffer(uint16_t perSize, uint16_t length)
     result->perSize = perSize;
     result->length = 0;
     result->capacity = length;
+    pthread_mutex_init(&result->key, NULL);
     return result;
 }
 
 void cn_desBuffer(cn_buffer *target)
 {
+    pthread_mutex_destroy(&target->key);
     free(target->b);
     free(target);
 }

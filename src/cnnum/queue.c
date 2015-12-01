@@ -4,6 +4,9 @@
 #define CN_DEBUG_TYPENAME "cn_queue"
 #endif // CN_DEBUG_MODE_CNNUM_H_LVL
 
+/// Queue type id
+cn_type_id_t cn_queue_type_id = 0;
+
 /**
     * construct cn_queue object.
     * @param refname : reference name. (variable name)
@@ -14,6 +17,13 @@ cn_queue *cn_makeQue(const char *refname, uint16_t perSize)
     /// allocate memory for object, set default value. return NULL if fails.
     cn_queue *result = malloc(sizeof(cn_queue));
     if(result == NULL){return NULL;}
+
+    // if queue type has no identifier, request identifier.
+    if(cn_queue_type_id < 1){cn_queue_type_id = cn_typeGetNewID();}
+
+    // initialize object type definition
+    cn_typeInit(&result->t, cn_queue_type_id);
+
     /// initialize key for queue
     result->refname = refname;
     pthread_mutex_init(&result->key, NULL);
@@ -52,6 +62,10 @@ int cn_desQue(cn_queue *tque, cn_syncFuncPTR itemDestructor)
 {
     /// Make the queue empty first.
     cn_queEmpty(tque, itemDestructor);
+
+    // Destroy object type definition
+    cn_typeDestroy(&tque->t);
+
     /// Destroy queue key
     pthread_mutex_destroy(&tque->key);
     #if CN_DEBUG_MODE_FREE == 1 && CN_DEBUG_MODE_CNNUM_H_LVL > 0

@@ -10,14 +10,18 @@
 
 /* THREADPOOL */
 
+/** threadpool type id */
+extern cn_type_id_t cn_threadpool_type_id;
+
 /**
     * Threadpool is a grouped running thread
     * that is waiting to get job to do,
     * allowing multithreading proccessing.
     * Definition of cn_threadpool structure
     */
-typedef struct
+struct cn_threadpool
 {
+    cn_type t;
     const char *refname; // Reference name, variable name
     cn_list *threads; // worker list
     uint64_t lastThreadId; // last used thread id
@@ -27,21 +31,9 @@ typedef struct
     pthread_mutex_t threadWorkerListKey; // worker list access key
     pthread_cond_t jobsCond; // jobs queue condition
     pthread_attr_t threadAttr; // worker thread attribute
-} cn_threadpool;
+};
 
-/**
-    * cn_threadpoolWorker is worker thread for threadpool
-    * each thread will update their status to this object
-    */
-typedef struct
-{
-    const char *refname; // variable name
-    pthread_t thread_t; // pthread id
-    bool gotThplWork; // indicating the worker working status
-    bool running; // indicating permision to work
-    uint64_t threadid; // threadpool specified thread id
-    cn_threadpool *parent; // the threadpool that hold this worker
-} cn_threadpoolWorker;
+typedef struct cn_threadpool cn_threadpool;
 
 #include "cornet/cndebug.h"
 #define CN_DEBUG_MODE_CNTHREAD_H_LVL 1

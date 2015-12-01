@@ -1,5 +1,7 @@
 #include "cornet/cnsched.h"
 
+/** cn_sched type id */
+cn_type_id_t cn_sched_type_id = 0;
 
 #if CN_DEBUG_MODE_CNSCHED_H_LVL > 0
 #define CN_DEBUG_TYPENAME "cn_sched"
@@ -419,6 +421,10 @@ static int startScheduler()
     */
 cn_sched *cn_makeSched(const char *refname, cn_action *action, int CN_100_MILISECONDS timeout, int CN_100_MILISECONDS interval)
 {
+    // Defensive code
+    action = cn_typeGet(action, cn_action_type_id);
+    if(action == NULL){return NULL;}
+
     // Allocate result, init vars
     cn_sched *sched = malloc(sizeof(cn_sched));
     if(sched == NULL){return NULL;}
@@ -444,6 +450,12 @@ cn_sched *cn_makeSched(const char *refname, cn_action *action, int CN_100_MILISE
         sched->nextExecution.tv_sec, sched->nextExecution.tv_nsec, sched->interval.tv_sec, sched->interval.tv_nsec);
     #endif // CN_DEBUG_MODE_CNSCHED_H_LVL
 
+    // if schedule type has no identifier, request identifier.
+    if(cn_sched_type_id < 1){cn_sched_type_id = cn_typeGetNewID();}
+
+    // initialize object type definition
+    cn_typeInit(&sched->t, cn_sched_type_id);
+
     // return result
     return sched;
 }
@@ -456,8 +468,16 @@ int cn_desSched(cn_sched *sched)
 {
     int n = 0;
     // call action destructor.
+    cn_log("desched called for %s act %s\n", sched->refname, sched->action->refname);
     n = cn_desAction(sched->action);
-    if(n != 0){return n;}
+
+    #if CN_DEBUG_MODE_FREE == 1 && CN_DEBUG_MODE_CNSCHED_H_LVL > 0
+    cn_log("[DEBUG][file:%s][func:%s][line:%d][%s:%s] destroy type next.\n", __FILE__, __func__, __LINE__, sched->refname, CN_DEBUG_TYPENAME);
+    #endif // CN_DEBUG_MODE
+
+    // Destroy object type definition
+    cn_typeDestroy(&sched->t);
+
     #if CN_DEBUG_MODE_FREE == 1 && CN_DEBUG_MODE_CNSCHED_H_LVL > 0
     cn_log("[DEBUG][file:%s][func:%s][line:%d][%s:%s] dealloc attempt next.\n", __FILE__, __func__, __LINE__, sched->refname, CN_DEBUG_TYPENAME);
     #endif // CN_DEBUG_MODE

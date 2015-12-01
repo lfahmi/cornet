@@ -3,6 +3,9 @@
 #define CN_DEBUG_TYPENAME "cn_list"
 #endif // CN_DEBUG_MODE_CNTYPE_H_LVL
 
+/// List type id
+cn_type_id_t cn_list_type_id = 0;
+
 /**
     * Construct list object
     * @param refname : reference name. (variable name)
@@ -55,6 +58,12 @@ cn_list *cn_makeList(const char *refname, int perSize, int firstMaxCnt, bool app
         return NULL;
     }
 
+    // if list type has no identifier, request identifier.
+    if(cn_list_type_id < 1){cn_list_type_id = cn_typeGetNewID();}
+
+    // initialize object type definition
+    cn_typeInit(&tlist->t, cn_list_type_id);
+
     // execution made it to finish fine.
     return tlist;
 }
@@ -70,6 +79,9 @@ int cn_desList(cn_list *tlist)
 
     // lock the list
     pthread_mutex_lock(&tlist->key);
+
+    // Destroy object type definition
+    cn_typeDestroy(&tlist->t);
 
     // dealloc list buffer
     #if CN_DEBUG_MODE_FREE == 1 && CN_DEBUG_MODE_CNNUM_H_LVL > 0

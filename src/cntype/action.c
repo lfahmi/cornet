@@ -4,6 +4,8 @@
 #define CN_DEBUG_TYPENAME "cn_action"
 #endif // CN_DEBUG_MODE_CNTYPE_H_LVL
 
+cn_type_id_t cn_action_type_id = 0;
+
 /**
     * Default value for the first time cn_action created.
     */
@@ -34,7 +36,7 @@ cn_action *cn_makeAction(const char *refname, cn_voidFunc funcptr, void *args, c
     if(result == NULL){return NULL;}
 
     // Set default value
-    *result = actionDefaultValue;
+   // *result = actionDefaultValue;
 
     // Set reference name
     result->refname = refname;
@@ -44,6 +46,16 @@ cn_action *cn_makeAction(const char *refname, cn_voidFunc funcptr, void *args, c
     result->funcptr = funcptr;
     result->argsDestructor = argsDestructor;
     result->args = args;
+
+    result->callSelfDestructor = true;
+    result->callArgsDestructor = true;
+    result->cancel = false;
+
+    // if action type has no identifier, request identifier.
+    if(cn_action_type_id < 1){cn_action_type_id = cn_typeGetNewID();}
+
+    // initialize object type definition
+    cn_typeInit(&result->t, cn_action_type_id);
 
     // cn_action creation has done, return result.
     return result;
@@ -66,6 +78,10 @@ int cn_desAction(cn_action *action)
         {
             action->argsDestructor(action->args);
         }
+
+        // Destruct object type definition
+        cn_typeDestroy(&action->t);
+
         #if CN_DEBUG_MODE_FREE == 1 && CN_DEBUG_MODE_CNTYPE_H_LVL == 1
         cn_log("[DEBUG][file:%s][func:%s][line:%d][%s:%s] dealloc attempt next.\n", __FILE__, __func__, __LINE__, action->refname, CN_DEBUG_TYPENAME);
         #endif // CN_DEBUG_MODE
