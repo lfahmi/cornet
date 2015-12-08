@@ -151,12 +151,18 @@ static void *workerTask(void *args)
         if(work != NULL)
         {
             // Defensive check then do action
+            work->action = cn_typeGet(work->action, cn_action_type_id);
             if(work->action != NULL && !work->action->cancel && work->action->funcptr != NULL)
             {
                 #if CN_DEBUG_MODE_CNSCHED_H_LVL == 1
                 cn_log("thread %u got work %s\n", (int)workTid, work->action->refname);
                 #endif // CN_DEBUG_MODE_CNSCHED_H_LVL
                 work->action->funcptr(work->action->args);
+            }
+            else
+            {
+                cn_schedRemove(work);
+                cn_desSched(work);
             }
 
             // schedule was created for delay action. remove from scheduler after first action.

@@ -4,22 +4,6 @@
 cn_type_id_t cn_threadpool_type_id = 0;
 
 /**
-    * cn_threadpoolWorker is worker thread for threadpool
-    * each thread will update their status to this object
-    */
-struct cn_threadpoolWorker
-{
-    const char *refname; // variable name
-    pthread_t thread_t; // pthread id
-    bool gotThplWork; // indicating the worker working status
-    bool running; // indicating permision to work
-    uint64_t threadid; // threadpool specified thread id
-    cn_threadpool *parent; // the threadpool that hold this worker
-};
-
-typedef struct cn_threadpoolWorker cn_threadpoolWorker;
-
-/**
     * Argument structure for AsyncThread Function
     */
 struct asyncThreadArgs
@@ -159,15 +143,23 @@ static void *threadWork(void *arg)
                 // the job is not null, and not requested to cancel.
                 // set the thread activity to got work, add wokringTask
                 // counter by one and do the job.
-                *gotThplWork = true;
-                *workingThread += 1;
+                //*gotThplWork = true;
+                __sync_bool_compare_and_swap(gotThplWork, false, true);
+                //int tmpint = *workingThread;
+                //tmpint++;
+                //*workingThread = tmpint;
+                __sync_add_and_fetch(workingThread, 1);
                 #if CN_DEBUG_MODE_CNTHREAD_H_LVL >= 10
                 cn_log("thread %d got work\n", (int)thread->threadid);
                 #endif // CN_DEBUG_MODE_CNTHREAD_H_LVL
                 work->funcptr(work->args);
 
                 // we are done working. subtract the workingThread by one.
-                *workingThread -= 1;
+                //tmpint = *workingThread;
+                //tmpint--;
+                //*workingThread = tmpint;
+                __sync_bool_compare_and_swap(gotThplWork, true, false);
+                __sync_sub_and_fetch(workingThread, 1);
             }
             // call the job destructor
             cn_desAction(work);
@@ -181,7 +173,7 @@ static void *threadWork(void *arg)
             cn_sleep(1);
         }
         // we have done our job. lets set our activity to dont get a job.
-        *gotThplWork = false;
+        //*gotThplWork = false;
     }
     #if CN_DEBUG_MODE_CNTHREAD_H_LVL >= 5
     cn_log("worker thread %d got termination sign\n", (int)thread->threadid);

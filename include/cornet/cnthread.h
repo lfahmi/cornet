@@ -35,6 +35,22 @@ struct cn_threadpool
 
 typedef struct cn_threadpool cn_threadpool;
 
+/**
+    * cn_threadpoolWorker is worker thread for threadpool
+    * each thread will update their status to this object
+    */
+struct cn_threadpoolWorker
+{
+    const char *refname; // variable name
+    pthread_t thread_t; // pthread id
+    bool gotThplWork; // indicating the worker working status
+    bool running; // indicating permision to work
+    uint64_t threadid; // threadpool specified thread id
+    cn_threadpool *parent; // the threadpool that hold this worker
+};
+
+typedef struct cn_threadpoolWorker cn_threadpoolWorker;
+
 #include "cornet/cndebug.h"
 #define CN_DEBUG_MODE_CNTHREAD_H_LVL 1
 /* THREADPOOL */

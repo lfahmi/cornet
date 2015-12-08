@@ -6,9 +6,11 @@
 
 cn_type_id_t cn_action_type_id = 0;
 
+
 /**
     * Default value for the first time cn_action created.
     */
+    /*
 static cn_action actionDefaultValue =
 {
     .refname = NULL,
@@ -19,6 +21,7 @@ static cn_action actionDefaultValue =
     .callArgsDestructor = true,
     .cancel = false
 };
+*/
 
 /**
     * Make action object.

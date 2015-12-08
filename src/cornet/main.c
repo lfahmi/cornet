@@ -19,8 +19,9 @@ static void *cn_privlistener(void *arg)
         pack->listener = targ->fd;
         pack->fromlen = sizeof(struct sockaddr_in);
         pack->buffer = cn_createBuffer(1, bufferSize);
-        uint16_t *len = &pack->buffer->length;
+        uint16_t *len = &pack->buffer->originallength;
         *len = recvfrom(listenfd, pack->buffer->b, bufferSize, 0, (struct sockaddr *)&pack->from, &pack->fromlen);
+        pack->buffer->length = pack->buffer->originallength;
         handler(pack);
     }
     return NULL;

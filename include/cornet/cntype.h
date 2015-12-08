@@ -1,6 +1,8 @@
 #ifndef _CNTYPE_H
 #define _CNTYPE_H 1
 #include <stdbool.h>
+#include <pthread.h>
+#include <signal.h>
 #include <stdlib.h>
 #include <string.h>
 #include <netinet/in.h>

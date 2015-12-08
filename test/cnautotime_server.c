@@ -16,6 +16,7 @@
 
 #define MEDSTRLEN 102
 
+char _s_getTimeRequest[] = "CNOPERATION_GET_UTC_TIME";
 
 void error(const char *msg)
 {
@@ -30,8 +31,16 @@ int handler(void *arg)
     fromaddr[0] = '\0';
     cn_inaddrToStr((char *)&fromaddr, pack->from.sin_addr.s_addr);
     printf("Received data from %s:%d\n", fromaddr, pack->from.sin_port);
-    printf("data:%s\n", pack->buffer->workb);
-    sendto(pack->listener->sock ,"Got your message\n",17, 0,(struct sockaddr *)&pack->from, pack->fromlen);
+    printf("data:%s\n", pack->buffer->b);
+    if(cn_bitIndexOf(pack->buffer->b, pack->buffer->length, _s_getTimeRequest, sizeof(_s_getTimeRequest) - 1) == 0)
+    {
+        printf("sending utc time\n");
+        time_t t = time(NULL);
+        sendto(pack->listener->sock , &t, sizeof(time_t), 0,(struct sockaddr *)&pack->from, pack->fromlen);
+    }
+    cn_desBuffer(pack->buffer);
+    free(pack);
+    return 0;
 }
 
 int main(int argc, char *argv[])

@@ -38,9 +38,10 @@ typedef struct
 typedef struct
 {
     char *b;
-    char *workb;
+    char *originalb;
     uint16_t perSize;
     uint16_t length;
+    uint16_t originallength;
     uint16_t capacity;
     pthread_mutex_t key;
 } cn_buffer;

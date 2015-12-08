@@ -215,7 +215,7 @@ int cn_listSet(cn_list *tlist, int indx, void * item)
     * @param cnt : count of ordered item, only used for non append address list.
     * return -1 for failure.
     */
-int listIndexOf(cn_list *tlist, void *item, int CN_NOT_USED_FOR_LIST_APPENDADDRESS cnt)
+static int listIndexOf(cn_list *tlist, void *item, int CN_NOT_USED_FOR_LIST_APPENDADDRESS cnt)
 {
     int i;
     if(tlist->appendTheAddress)

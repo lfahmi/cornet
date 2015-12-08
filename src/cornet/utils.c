@@ -68,10 +68,11 @@ int cn_createip4(cn_ip4 *target, in_addr_t *ip4addrt)
 cn_buffer *cn_createBuffer(uint16_t perSize, uint16_t length)
 {
     cn_buffer *result = malloc(sizeof(cn_buffer));
-    result->b = malloc(length * perSize);
-    result->workb = result->b;
+    result->originalb = malloc(length * perSize);
+    result->b = result->originalb;
     result->perSize = perSize;
     result->length = 0;
+    result->originallength = 0;
     result->capacity = length;
     pthread_mutex_init(&result->key, NULL);
     return result;
