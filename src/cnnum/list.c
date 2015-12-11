@@ -169,7 +169,13 @@ void *cn_listGet(cn_list *tlist, int indx)
     if(tlist == NULL || indx < 0){return NULL;}
     if(tlist->cnt < indx) {return NULL;}
 
-    // return the item address
+    if(tlist->appendTheAddress)
+    {
+        // return the item pointer
+        return *((void **)(*tlist->b + (indx * tlist->perSize)));
+    }
+
+    // return the item address in list buffer
     return (*tlist->b + (indx * tlist->perSize));
 }
 
@@ -248,7 +254,7 @@ static int listIndexOf(cn_list *tlist, void *item, int CN_NOT_USED_FOR_LIST_APPE
             {
                 // we got the mathcing items index from the list.
                 // return the index.
-                return i;
+                return i / tlist->perSize;
             }
         }
     }
@@ -498,6 +504,9 @@ int cn_listEmpty(cn_list *tlist, cn_syncFuncPTR itemDestructor)
     */
 static int listInsertAt(cn_list *tlist, int indx, void *items, int cnt)
 {
+    // If pointer list. item count to append always 1
+    if(tlist->appendTheAddress){cnt = 1;}
+
     // declare indication for expansion is required
     bool needExpand = false;
 
@@ -542,7 +551,7 @@ static int listInsertAt(cn_list *tlist, int indx, void *items, int cnt)
         if(n < 0) {goto unlock_reterr;}
 
     }
-    if(indx != (tlist->cnt - 1) && tlist->cnt > 0)
+    if(indx < tlist->cnt && tlist->cnt > 0)
     {
         /*  so we are inserting items in the middle of the list
             ( not after last index and not the first item for the list )
@@ -563,7 +572,16 @@ static int listInsertAt(cn_list *tlist, int indx, void *items, int cnt)
         if(n < 0) {goto unlock_reterr;}
     }
     // finally after all the preparation, we insert our items to the list, defensively.
-    n = cn_bitcp((tmpb + (indx * tlist->perSize)), items, (cnt * tlist->perSize));
+    if(tlist->appendTheAddress)
+    {
+        void **litems = *tlist->b;
+        litems[indx] = items;
+    }
+    else
+    {
+        n = cn_bitcp((tmpb + (indx * tlist->perSize)), items, (cnt * tlist->perSize));
+    }
+
     if(n < 0) {goto unlock_reterr;}
     if(needExpand == true)
     {
@@ -592,7 +610,7 @@ static int listInsertAt(cn_list *tlist, int indx, void *items, int cnt)
 int cn_listInsertAt(cn_list *tlist, int indx, void *items, int cnt)
 {
     // Defensive code.
-    if(tlist == NULL || items == NULL || indx < 0 || cnt < 1) {return -1;}
+    if(tlist == NULL || items == NULL || indx < 0 || indx > tlist->cnt || cnt < 1) {return -1;}
 
     // Lock the list
     pthread_mutex_lock(&tlist->key);

@@ -40,7 +40,6 @@ int cn_startUDPListener(cn_sock *fd, char *ip4Str, uint16_t port, uint32_t buffe
     {
         fd->addr.sin_addr.s_addr = cn_strToInaddr(ip4Str);
     }
-    if(fd->addr.sin_addr.s_addr == 0) {return -1;}
     fd->addr.sin_family = AF_INET;
     fd->addr.sin_port = htons(port);
     if (bind(fd->sock,(struct sockaddr *)&fd->addr, sizeof(fd->addr))<0)

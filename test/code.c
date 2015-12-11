@@ -102,6 +102,13 @@ int main(int argc, char *argv[])
     printf("ref name of act parsed %s\n", actparsed->refname);
     cn_list *plsparsed = cn_typeGet(actparsed, cn_list_type_id);
     printf("ref name of pls parsed %s\n", plsparsed->refname);
+    cn_dictionary4b *dict = cn_makeDict4b("testdictionary");
+    cn_dict4bAdd(dict, 12, "ohayoooooo");
+    cn_dict4bAdd(dict, 800, "trampolines");
+    cn_dict4bAdd(dict, 1234, "MYONETWOTHREEFOUR");
+    printf("dict key 12 = %s, 800 = %s, 1234 = %s\n", (char *)cn_dict4bGet(dict, 12), (char *)cn_dict4bGet(dict, 800), (char *)cn_dict4bGet(dict, 1234));
+    cn_desDict4b(dict);
+    return 0;
     cn_desAction(actparsed);
     pthread_mutex_t key;
     pthread_mutex_init(&key,NULL);

@@ -89,7 +89,7 @@ typedef struct cn_action cn_action;
 
 extern cn_type_id_t cn_typeGetNewID();
 
-extern int cn_typeInit(cn_type *target, cn_type_id_t type_id);
+extern void cn_typeInit(cn_type *target, cn_type_id_t type_id);
 
 extern int cn_typeAppendObject(void *target, void *object);
 
@@ -133,7 +133,7 @@ extern int cn_desAction(cn_action *action);
     */
 extern int cn_desActionNumerableInterface(void *args);
 
-#include <cornet/cnnum.h>
+#include "cornet/cnnum.h"
 
 #endif
 

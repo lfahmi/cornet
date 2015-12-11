@@ -53,7 +53,7 @@ int main(int argc, char *argv[])
       exit(0);
    }
    cn_sock udpsock;
-   cn_startUDPListener(&udpsock, "127.0.0.1", atoi(argv[1]), 1024, handler);
+   cn_startUDPListener(&udpsock, "0.0.0.0", atoi(argv[1]), 1024, handler);
    while(1)
    {
         cn_sleep(1000);

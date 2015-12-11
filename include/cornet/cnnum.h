@@ -15,8 +15,10 @@
 
 /* LIST */
 
+/// type id for list
 extern cn_type_id_t cn_list_type_id;
 
+/** Definition for List structure */
 struct cn_list
 {
     cn_type t;
@@ -34,6 +36,7 @@ typedef struct cn_list cn_list;
 
 /* QUEUE */
 
+/// type id for queue
 extern cn_type_id_t cn_queue_type_id;
 
 struct cn_queueNode
@@ -42,6 +45,7 @@ struct cn_queueNode
     struct cn_queueNode *next;
 };
 
+/**  Definition for Queue structure */
 struct cn_queue
 {
     cn_type t;
@@ -55,6 +59,29 @@ struct cn_queue
 };
 
 typedef struct cn_queue cn_queue;
+
+/* DICTIONARY 4bytes key */
+
+/// type id for dictionary 4 bytes
+extern cn_type_id_t cn_dictionary4b_type_id;
+
+/** Definition for Dictionary 4bytes-key structure
+    this dictionary allow no collision, ipv4 is suitable key
+*/
+struct cn_dictionary4b
+{
+    cn_type t;
+    const char *refname;
+    cn_list *itemKey;
+    cn_list *itemValue;
+    int cnt;
+    pthread_mutex_t key;
+};
+
+typedef struct cn_dictionary4b cn_dictionary4b;
+
+/* END OF DEFINITION */
+
 #include "cornet/cndebug.h"
 #include "cornet/cnbitop.h"
 
@@ -172,7 +199,7 @@ extern int cn_listEmpty(cn_list *tlist, cn_syncFuncPTR itemDestructor);
     * @param items : item objects array.
     * @param cnt : how much item is goint to be added.
     */
-extern int CN_NEVER_USE_THIS_WITH_LIST_APPENDADDRESS cn_listInsertAt(cn_list *tlist, int indx, void *items, int cnt);
+extern int cn_listInsertAt(cn_list *tlist, int indx, void *items, int CN_NOT_USED_FOR_LIST_APPENDADDRESS cnt);
 
 /* QUEUE */
 
@@ -209,5 +236,103 @@ extern int cn_queEn(cn_queue *tque, void *item);
     * @param tque; queue object.
     */
 extern void *cn_queDe(cn_queue *tque);
+
+/* DICTIONARY 4bytes key */
+
+/**
+    * Construct Dictionary 4bytes-key object structure.
+    * @param refname : reference name.
+    * return NULL for error
+    */
+extern cn_dictionary4b *cn_makeDict4b(const char *refname);
+
+/**
+    * Get the index in dictionary mapping containing key.
+    * @param tdict : target dictionary
+    * @param key : key to look for in key list
+    * return < 0 for not found
+    */
+extern int cn_dict4bIndexOfKey(cn_dictionary4b *tdict, uint32_t key);
+
+/**
+    * Get the index in dictionary mapping containing value
+    * @param tdict : target dictionary
+    * @param value : value to look for in value list
+    * return < 0 for not found
+    */
+extern int cn_dict4bIndexOfValue(cn_dictionary4b *tdict, void *value);
+
+/**
+    * Set/Add(if key not exist) key-value pair item to dictionary.
+    * @param tdict : target dictionary
+    * @param key : key for dictionary item
+    * @param value : value for dictionary item
+    * return 0 for fine
+    */
+extern int cn_dict4bSet(cn_dictionary4b *tdict, uint32_t key, void *value);
+
+/**
+    * Get dictionary item value from dictionary by key
+    * @param tdict : target dictionary
+    * @param key : key to find the item value
+    * return NULL for not found
+    */
+extern void *cn_dict4bGet(cn_dictionary4b *tdict, uint32_t key);
+
+/**
+    * Get dictionary item value from dictionary by index
+    * @param tdict : target dictionary
+    * @param indx : index of the item
+    * return NULL for out of index range
+    */
+extern void *cn_dict4bGetByIndex(cn_dictionary4b *tdict, int indx);
+
+/**
+    * Get the key for dictionary item that has matching dictionary item value
+    * @param tdict : target dictionary
+    * @param value : dictionary item value for search input
+    * @param out : unsigned 32bit integer pointer to hold result dictionary item key
+    * return 0 for FOUND
+    */
+extern int cn_dict4bGetKey(cn_dictionary4b *tdict, void *value, uint32_t *out);
+
+/**
+    * remove dictionary item by their key
+    * @param tdict : target dictionary
+    * @param key : key of dictionary item to delete
+    * return 0 for fine
+    */
+extern int cn_dict4bRemoveByKey(cn_dictionary4b *tdict, uint32_t key);
+
+/**
+    * remove dictionary item by their value
+    * @param tdict : target dictionary
+    * @param value : value of dictionary item to delete
+    * return 0 for fine
+    */
+extern int cn_dict4bRemoveByValue(cn_dictionary4b *tdict, void *value);
+
+/**
+    * remove dictionary item by their index
+    * @param tdict : target dictionary
+    * @param indx : index of dictionary item to delete
+    * return 0 for fine
+    */
+extern int cn_dict4bRemoveByIndex(cn_dictionary4b *tdict, int indx);
+
+/**
+    * Remove all items in dictionary
+    * @param tdict : target dictionary
+    * @param itemDestructor : sync function for destruction of dictionary item
+    * return 0 for fine
+    */
+extern int cn_dict4bEmpty(cn_dictionary4b *tdict, cn_syncFuncPTR itemDestructor);
+
+/**
+    * Destruct cn_dictionary4b object structure
+    * @param tdict : target dictionary
+    * return 0 for fine
+    */
+extern int cn_desDict4b(cn_dictionary4b *tdict);
 
 #endif

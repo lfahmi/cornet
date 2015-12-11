@@ -14,7 +14,7 @@ cn_type_id_t cn_typeGetNewID()
     * @param target : target cn_type object.
     * @param type_id : type_id for this type definition.
     */
-int cn_typeInit(cn_type *target, cn_type_id_t type_id)
+void cn_typeInit(cn_type *target, cn_type_id_t type_id)
 {
     // Set the begin of file
     target->bof = bof;
@@ -25,7 +25,7 @@ int cn_typeInit(cn_type *target, cn_type_id_t type_id)
     // Set objects to null
     target->objs = NULL;
     // Init target key
-    return pthread_mutex_init(&target->key, NULL);
+    pthread_mutex_init(&target->key, NULL);
 }
 
 /**
