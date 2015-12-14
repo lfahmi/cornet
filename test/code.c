@@ -58,6 +58,62 @@ void *printer(void *arg)
         cn_listInsertAt(mylist, o, &nameKey, sizeof(nameKey) - 1);
     }
     cn_listSplice(mylist, cn_listIndexOf(mylist, "456", 3), 3, NULL);
+    while(o >= 0)
+    {
+        o = cn_listIndexOf(mylist, &nameKey, sizeof(nameKey) - 1);
+        cn_listSplice(mylist, o, sizeof(nameKey) - 1, NULL);
+        cn_listInsertAt(mylist, o, &nameVal, sizeof(nameVal) - 1);
+    }
+    cn_listSplice(mylist, cn_listIndexOf(mylist, "456", 3), 3, NULL);
+    while(o >= 0)
+    {
+        o = cn_listIndexOf(mylist, &nameVal, sizeof(nameVal) - 1);
+        cn_listSplice(mylist, o, sizeof(nameVal) - 1, NULL);
+        cn_listInsertAt(mylist, o, &nameKey, sizeof(nameKey) - 1);
+    }
+    cn_listSplice(mylist, cn_listIndexOf(mylist, "456", 3), 3, NULL);
+    while(o >= 0)
+    {
+        o = cn_listIndexOf(mylist, &nameKey, sizeof(nameKey) - 1);
+        cn_listSplice(mylist, o, sizeof(nameKey) - 1, NULL);
+        cn_listInsertAt(mylist, o, &nameVal, sizeof(nameVal) - 1);
+    }
+    cn_listSplice(mylist, cn_listIndexOf(mylist, "456", 3), 3, NULL);
+    while(o >= 0)
+    {
+        o = cn_listIndexOf(mylist, &nameVal, sizeof(nameVal) - 1);
+        cn_listSplice(mylist, o, sizeof(nameVal) - 1, NULL);
+        cn_listInsertAt(mylist, o, &nameKey, sizeof(nameKey) - 1);
+    }
+    cn_listSplice(mylist, cn_listIndexOf(mylist, "456", 3), 3, NULL);
+    while(o >= 0)
+    {
+        o = cn_listIndexOf(mylist, &nameKey, sizeof(nameKey) - 1);
+        cn_listSplice(mylist, o, sizeof(nameKey) - 1, NULL);
+        cn_listInsertAt(mylist, o, &nameVal, sizeof(nameVal) - 1);
+    }
+    cn_listSplice(mylist, cn_listIndexOf(mylist, "456", 3), 3, NULL);
+    while(o >= 0)
+    {
+        o = cn_listIndexOf(mylist, &nameVal, sizeof(nameVal) - 1);
+        cn_listSplice(mylist, o, sizeof(nameVal) - 1, NULL);
+        cn_listInsertAt(mylist, o, &nameKey, sizeof(nameKey) - 1);
+    }
+    cn_listSplice(mylist, cn_listIndexOf(mylist, "456", 3), 3, NULL);
+    while(o >= 0)
+    {
+        o = cn_listIndexOf(mylist, &nameKey, sizeof(nameKey) - 1);
+        cn_listSplice(mylist, o, sizeof(nameKey) - 1, NULL);
+        cn_listInsertAt(mylist, o, &nameVal, sizeof(nameVal) - 1);
+    }
+    cn_listSplice(mylist, cn_listIndexOf(mylist, "456", 3), 3, NULL);
+    while(o >= 0)
+    {
+        o = cn_listIndexOf(mylist, &nameVal, sizeof(nameVal) - 1);
+        cn_listSplice(mylist, o, sizeof(nameVal) - 1, NULL);
+        cn_listInsertAt(mylist, o, &nameKey, sizeof(nameKey) - 1);
+    }
+    cn_listSplice(mylist, cn_listIndexOf(mylist, "456", 3), 3, NULL);
     cn_desList(mylist);
     //printf("content %s\n", cn_listGet(mylist, 0));
     //sleep(1);
@@ -94,26 +150,25 @@ void dominic(int *ptra)
 
 int main(int argc, char *argv[])
 {
+
     printf("sizeof pthread_mutex_t %d\n", sizeof(pthread_mutex_t));
     cn_action *act = cn_makeAction("test", NULL, NULL, NULL);
     cn_list *pls = cn_makeList("pls", 1, 1, false);
+    cn_listInsertAt(pls, pls->cnt, "1234567890", 11);
     cn_typeAppendObject(pls, act);
     cn_action *actparsed = cn_typeGet(pls, cn_action_type_id);
     printf("ref name of act parsed %s\n", actparsed->refname);
     cn_list *plsparsed = cn_typeGet(actparsed, cn_list_type_id);
     printf("ref name of pls parsed %s\n", plsparsed->refname);
+    cn_desList(plsparsed);
+    cn_desAction(actparsed);
+
     cn_dictionary4b *dict = cn_makeDict4b("testdictionary");
-    cn_dict4bAdd(dict, 12, "ohayoooooo");
-    cn_dict4bAdd(dict, 800, "trampolines");
-    cn_dict4bAdd(dict, 1234, "MYONETWOTHREEFOUR");
+    cn_dict4bSet(dict, 12, "ohayoooooo");
+    cn_dict4bSet(dict, 800, "trampolines");
+    cn_dict4bSet(dict, 1234, "MYONETWOTHREEFOUR");
     printf("dict key 12 = %s, 800 = %s, 1234 = %s\n", (char *)cn_dict4bGet(dict, 12), (char *)cn_dict4bGet(dict, 800), (char *)cn_dict4bGet(dict, 1234));
     cn_desDict4b(dict);
-    return 0;
-    cn_desAction(actparsed);
-    pthread_mutex_t key;
-    pthread_mutex_init(&key,NULL);
-    pthread_mutex_lock(&key);
-    pthread_mutex_unlock(&key);
     printer(NULL);
     setpriority(PRIO_PROCESS, getpid(), 1);
     clock_gettime(CLOCK_MONOTONIC, &start);
@@ -133,6 +188,7 @@ int main(int argc, char *argv[])
     }
     cn_listSplice(mylist, cn_listIndexOf(mylist, "456", 3), 3, NULL);
     printf("content %s\n", (char *)cn_listGet(mylist, 0));
+    cn_desList(mylist);
     //cn_schedAdd(cn_makeSched("timer100ms", cn_makeAction("timePrinter", printer, (void *)1234, NULL), 0, 1));
 
     struct timespec ts, tstart, tend;
@@ -155,7 +211,7 @@ int main(int argc, char *argv[])
     pthread_mutex_lock(&tp->jobsKey);
     cn_action *job = cn_makeAction("printerRepeated", printer, (void *)i, NULL);
     job->callSelfDestructor = false;
-    for(i = 0; i < 3000000; i++)
+    for(i = 0; i < 20000; i++)
     {
         //cn_thplEnq(tp, job);
         cn_queEn(tp->actions, job);
@@ -171,12 +227,14 @@ int main(int argc, char *argv[])
     {
         cn_thplEnq(tp, cn_makeAction("printer", printer, (void *)i, NULL));
     }
-    cn_sleep(20000);
+    cn_sleep(15000);
     printElapsed();
     cn_desThplAsync(tp, NULL);
     printElapsed();
     printf("sizeof sec %d, nsec %d\n", sizeof(end.tv_sec), sizeof(end.tv_nsec));
-    cn_sleep(2000);
-
+    cn_sleep(5000);
+    job->callSelfDestructor = true;
+    cn_desAction(job);
+    cn_stopScheduler();
     return 0;
 }

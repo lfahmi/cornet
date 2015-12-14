@@ -76,6 +76,10 @@ extern void cn_sleep(int milisecond);  // cross-platform sleep function
     */
 extern int cn_doDelayedAction(cn_action *action, int CN_100_MILISECONDS timeout);
 
+extern int cn_startScheduler();
+
+extern int cn_stopScheduler();
+
 /**
     * make cn_sched object.
     * @param refname : reference name. (variable name)

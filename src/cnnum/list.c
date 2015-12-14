@@ -223,6 +223,7 @@ int cn_listSet(cn_list *tlist, int indx, void * item)
     */
 static int listIndexOf(cn_list *tlist, void *item, int CN_NOT_USED_FOR_LIST_APPENDADDRESS cnt)
 {
+    if(tlist->cnt < 1){return -1;}
     int i;
     if(tlist->appendTheAddress)
     {
@@ -243,7 +244,9 @@ static int listIndexOf(cn_list *tlist, void *item, int CN_NOT_USED_FOR_LIST_APPE
     else
     {
         // retrieve the loop limit and list buffer
-        int limit = tlist->blen - (tlist->perSize * cnt);
+        // limit is the length of all items in list buffer subtracter by comparison item count (cnt) subtracted by one
+        // preventing for accessing the end of list buffer if item to look for is greater than one
+        int limit = (tlist->perSize * tlist->cnt) - ((cnt - 1) * tlist->perSize);
         void *listPtr = *tlist->b;
 
         // start looking for the item, increment by sizeof item
@@ -347,6 +350,7 @@ static int listSplice(cn_list *tlist, int startIndx, int remlen, cn_syncFuncPTR 
                 // finnaly destruct each removed items
                 itemDestructor(itemToDestruct[loopi]);
             }
+            free(itemToDestruct);
         }
     }
 

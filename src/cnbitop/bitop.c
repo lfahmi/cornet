@@ -143,3 +143,14 @@ int cn_bitIndexOf(void *target, int tlen, void *item, int ilen)
     }
     return -1;
 }
+
+int cn_bitStrLen(char *str)
+{
+    int i = 1;
+    while(*str != 0)
+    {
+        str++;
+        i++;
+    }
+    return i;
+}

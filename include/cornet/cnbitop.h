@@ -16,4 +16,6 @@ extern int cn_bitzero(void *target, int len);
 
 extern int cn_bitIndexOf(void *target, int tlen, void *item, int ilen);
 
+extern int cn_bitStrLen(char *str);
+
 #endif

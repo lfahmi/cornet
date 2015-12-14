@@ -55,13 +55,16 @@ int cn_timespecComp(struct timespec *tsA, struct timespec *tsB)
 }
 
 /// Indicate scheduler running status.
-static bool running = false;
+static bool cn_schedWorkerRunning = false, cn_schedTaskRunning = false;
 
 /// Indicate if the scheduler is starting.
 static bool starter = false;
 
 /// store thread id for scheduler and scheduler worker.
 static pthread_t schedTid, workTid;
+
+/// PREVENT VALGRIND POSIBLE LEAK WARNING
+static pthread_attr_t schedThreadAttr;
 
 /// mutex lock for starter, scheduler and worker.
 static pthread_mutex_t starterKey, schedsKey, dueTimeKey;
@@ -121,7 +124,7 @@ static void *workerTask(void *args)
     #if CN_DEBUG_MODE_CNSCHED_H_LVL <= 2
     cn_log("worker thread %u created\n", (int)workTid);
     #endif // CN_DEBUG_MODE_CNSCHED_H_LVL
-    while(running == true)
+    while(cn_schedWorkerRunning == true)
     {
         // lock cn_queue dueTime access
         pthread_mutex_lock(key);
@@ -139,7 +142,7 @@ static void *workerTask(void *args)
         #endif // CN_DEBUG_MODE_CNSCHED_H_LVL
 
         // thread abortion, break work requesting loop and terminate thread.
-        if(!running)
+        if(cn_schedWorkerRunning == false)
         {
             pthread_mutex_unlock(key);
             break;
@@ -200,15 +203,17 @@ static void *schedulerTask(void *args)
 {
     // lock starter init schedule list, dueTime queue, mutexs cond and worker thread.
     pthread_mutex_lock(&starterKey);
-    scheds = cn_makeList("cn_sched.scheduler.schedules", sizeof(cn_sched *), 100, true);
+    scheds = cn_makeList("cn_sched.scheduler.schedules", sizeof(cn_sched *), 20, true);
     if(scheds == NULL){goto doErr;}
     dueTime = cn_makeQue("cn_sched.scheduler.dueTime", sizeof(cn_action));
     if(dueTime == NULL){cn_desList(scheds); goto doErr;}
-    running = true;
+    cn_schedTaskRunning = true;
+    cn_schedWorkerRunning = true;
     pthread_mutex_init(&schedsKey, NULL);
     pthread_mutex_init(&dueTimeKey, NULL);
     pthread_cond_init(&dueTimeCond, NULL);
-    pthread_create(&workTid, NULL, workerTask, NULL);
+    pthread_create(&workTid, &schedThreadAttr, workerTask, NULL);
+
     int i;
 
     // schedule starter complete signal then release starter lock
@@ -229,34 +234,77 @@ static void *schedulerTask(void *args)
     starter = false;
 
     // scheduler main task, live until proccess die.
-    while(running)
+    while(cn_schedTaskRunning)
     {
         // lock schedule list.
         pthread_mutex_lock(&schedsKey);
 
-        // preparation for foreach item in schedules list.
-        cn_sched **schedsPtrs = (cn_sched **)*scheds->b;
-        cn_sched *sched;
-
-        // get now time
-        struct timespec now;
-        clock_gettime(CLOCK_MONOTONIC, &now);
-
-        // foreach schedule
-        for(i = 0; i < scheds->cnt; i++)
+        if(scheds->cnt > 0)
         {
-            #if CN_DEBUG_MODE_CNSCHED_H_LVL == 1
-            cn_log("SCHEDULE LOOP %d = %d cnt %d\n", i, (int)schedsPtrs[i], scheds->cnt);
-            #endif // CN_DEBUG_MODE_CNSCHED_H_LVL
 
-            // foreach work item
-            sched = schedsPtrs[i];
+            // preparation for foreach item in schedules list.
+            cn_sched **schedsPtrs = (cn_sched **)*scheds->b;
+            cn_sched *sched;
 
-            // next execution time is not last execution time
-            if(sched->lastExecution.tv_sec != sched->nextExecution.tv_sec || sched->lastExecution.tv_nsec != sched->nextExecution.tv_nsec)
+            // get now time
+            struct timespec now;
+            clock_gettime(CLOCK_MONOTONIC, &now);
+
+            // foreach schedule
+            for(i = 0; i < scheds->cnt; i++)
             {
-                // now time is greater than or equal than next execution time.
-                if(cn_timespecComp(&now, &sched->nextExecution) >= 0)
+                #if CN_DEBUG_MODE_CNSCHED_H_LVL == 1
+                cn_log("SCHEDULE LOOP %d = %d cnt %d\n", i, (int)schedsPtrs[i], scheds->cnt);
+                #endif // CN_DEBUG_MODE_CNSCHED_H_LVL
+
+                // foreach work item
+                sched = schedsPtrs[i];
+
+                // next execution time is not last execution time
+                if(sched->lastExecution.tv_sec != sched->nextExecution.tv_sec || sched->lastExecution.tv_nsec != sched->nextExecution.tv_nsec)
+                {
+                    // now time is greater than or equal than next execution time.
+                    if(cn_timespecComp(&now, &sched->nextExecution) >= 0)
+                    {
+                        // lock dueTime
+                        pthread_mutex_lock(&dueTimeKey);
+                        #if CN_DEBUG_MODE_CNSCHED_H_LVL == 1
+                        cn_log("scheduler due time %lu:%lu for %d before QUEUEEN cnt = %d\n", sched->nextExecution.tv_sec, sched->nextExecution.tv_nsec, sched, dueTime->cnt);
+                        #endif // CN_DEBUG_MODE_CNSCHED_H_LVL
+
+                        // enQueue sched to dueTime
+                        if(cn_queEn(dueTime, sched) == 0)
+                        {
+                            // preventing double execution. set last execution by old next execution
+                            sched->lastExecution = sched->nextExecution;
+
+                            // always put signal in the end of operation
+                            pthread_cond_signal(&dueTimeCond);
+                        }
+                        #if CN_DEBUG_MODE_CNSCHED_H_LVL == 1
+                        else
+                        {
+                            cn_log("scheduler due time %lu:%lu for %d dueTime failed QUEUEEN cnt = %d\n", sched->nextExecution.tv_sec, sched->nextExecution.tv_nsec, sched, dueTime->cnt);
+                        }
+                        #endif // CN_DEBUG_MODE_CNSCHED_H_LVL
+
+                        // unlock dueTime
+                        pthread_mutex_unlock(&dueTimeKey);
+                        #if CN_DEBUG_MODE_CNSCHED_H_LVL == 1
+                        cn_log("scheduler due time %lu:%lu for %d dueTime cnt = %d\n", sched->nextExecution.tv_sec, sched->nextExecution.tv_nsec, sched, dueTime->cnt);
+                        #endif // CN_DEBUG_MODE_CNSCHED_H_LVL
+                    }
+                    #if CN_DEBUG_MODE_CNSCHED_H_LVL == 1
+                    else
+                    {
+                        cn_log("scheduler %s no due time %lu:%lu for %d\n", sched->action->refname, sched->nextExecution.tv_sec, sched->nextExecution.tv_nsec, sched);
+                    }
+                    #endif // CN_DEBUG_MODE_CNSCHED_H_LVL
+
+                }
+                // seems like this schedule is never get done executed for sometime. let observer know.
+                #if CN_DEBUG_MODE_CNSCHED_H_LVL == 1
+                else
                 {
                     // lock dueTime
                     pthread_mutex_lock(&dueTimeKey);
@@ -285,56 +333,28 @@ static void *schedulerTask(void *args)
                     #if CN_DEBUG_MODE_CNSCHED_H_LVL == 1
                     cn_log("scheduler due time %lu:%lu for %d dueTime cnt = %d\n", sched->nextExecution.tv_sec, sched->nextExecution.tv_nsec, sched, dueTime->cnt);
                     #endif // CN_DEBUG_MODE_CNSCHED_H_LVL
-                }
-                #if CN_DEBUG_MODE_CNSCHED_H_LVL == 1
-                else
-                {
-                    cn_log("scheduler %s no due time %lu:%lu for %d\n", sched->action->refname, sched->nextExecution.tv_sec, sched->nextExecution.tv_nsec, sched);
+
+                    cn_log("scheduler %s not done worked. triggering! time %lu:%lu for %d dueTIme CNT = %d\n", sched->action->refname, sched->nextExecution.tv_sec, sched->nextExecution.tv_nsec, sched, dueTime->cnt);
                 }
                 #endif // CN_DEBUG_MODE_CNSCHED_H_LVL
-
             }
-            // seems like this schedule is never get done executed for sometime. let observer know.
-            #if CN_DEBUG_MODE_CNSCHED_H_LVL == 1
-            else
-            {
-                // lock dueTime
-                pthread_mutex_lock(&dueTimeKey);
-                #if CN_DEBUG_MODE_CNSCHED_H_LVL == 1
-                cn_log("scheduler due time %lu:%lu for %d before QUEUEEN cnt = %d\n", sched->nextExecution.tv_sec, sched->nextExecution.tv_nsec, sched, dueTime->cnt);
-                #endif // CN_DEBUG_MODE_CNSCHED_H_LVL
-
-                // enQueue sched to dueTime
-                if(cn_queEn(dueTime, sched) == 0)
-                {
-                    // preventing double execution. set last execution by old next execution
-                    sched->lastExecution = sched->nextExecution;
-
-                    // always put signal in the end of operation
-                    pthread_cond_signal(&dueTimeCond);
-                }
-                #if CN_DEBUG_MODE_CNSCHED_H_LVL == 1
-                else
-                {
-                    cn_log("scheduler due time %lu:%lu for %d dueTime failed QUEUEEN cnt = %d\n", sched->nextExecution.tv_sec, sched->nextExecution.tv_nsec, sched, dueTime->cnt);
-                }
-                #endif // CN_DEBUG_MODE_CNSCHED_H_LVL
-
-                // unlock dueTime
-                pthread_mutex_unlock(&dueTimeKey);
-                #if CN_DEBUG_MODE_CNSCHED_H_LVL == 1
-                cn_log("scheduler due time %lu:%lu for %d dueTime cnt = %d\n", sched->nextExecution.tv_sec, sched->nextExecution.tv_nsec, sched, dueTime->cnt);
-                #endif // CN_DEBUG_MODE_CNSCHED_H_LVL
-
-                cn_log("scheduler %s not done worked. triggering! time %lu:%lu for %d dueTIme CNT = %d\n", sched->action->refname, sched->nextExecution.tv_sec, sched->nextExecution.tv_nsec, sched, dueTime->cnt);
-            }
-            #endif // CN_DEBUG_MODE_CNSCHED_H_LVL
         }
         pthread_mutex_unlock(&schedsKey);
         cn_sleep(100);
     }
     // The code would never actualy reach here because the scheduler wouldn't stop until app stop
     // Destroy every component used by scheduler.
+
+    cn_schedWorkerRunning = false;
+
+    pthread_mutex_lock(&dueTimeKey);
+    pthread_cond_signal(&dueTimeCond);
+    pthread_mutex_unlock(&dueTimeKey);
+
+    void **retval = malloc(sizeof(void *));
+    pthread_join(workTid, retval);
+    free(retval);
+
     cn_desQue(dueTime, NULL);
     cn_listEmpty(scheds, cn_desSchedNumerableInterface);
     cn_desList(scheds);
@@ -343,11 +363,13 @@ static void *schedulerTask(void *args)
     pthread_mutex_destroy(&starterKey);
     pthread_mutex_destroy(&schedsKey);
     pthread_mutex_destroy(&dueTimeKey);
+    pthread_attr_destroy(&schedThreadAttr);
+    cn_log("scheduler stoped!\n");
     return NULL;
 
     // error on starter
     doErr:
-    running = false;
+    cn_schedTaskRunning = false;
     pthread_cond_signal(&starterCond);
     pthread_mutex_unlock(&starterKey);
     return NULL;
@@ -358,7 +380,7 @@ static void *schedulerTask(void *args)
     * Start Scheduler Worker THreadsStart Task.
     * return 0 fine, otherwise -1.
     */
-static int startScheduler()
+int cn_startScheduler()
 {
     // Defensive code.
     if(!starter)
@@ -369,12 +391,16 @@ static int startScheduler()
         // Initialize starter lock and condition.
         pthread_mutex_init(&starterKey, NULL);
         pthread_cond_init(&starterCond, NULL);
+        pthread_attr_init(&schedThreadAttr);
+
+        // PREVENT VALGRIND POSIBLE LEAK WARNING
+        //pthread_attr_setdetachstate(&schedThreadAttr, PTHREAD_CREATE_DETACHED);
 
         // go inside starter and lock.
         pthread_mutex_lock(&starterKey);
 
         // start Scheduler ThreadStart task thread.
-        pthread_create(&schedTid, NULL, schedulerTask, NULL);
+        pthread_create(&schedTid, &schedThreadAttr, schedulerTask, NULL);
 
         // tell scheduler that we are waiting.
         waitingStarted++;
@@ -408,7 +434,7 @@ static int startScheduler()
     }
 
     // if the scheduler is still not running then return failure
-    if(!running)
+    if(!cn_schedTaskRunning)
     {
         starter = false;
         return -1;
@@ -417,6 +443,16 @@ static int startScheduler()
     // otherwise return fine.
     return 0;
 }
+
+int cn_stopScheduler()
+{
+    cn_schedTaskRunning = false;
+    void **retval = malloc(sizeof(void *));
+    pthread_join(schedTid, retval);
+    free(retval);
+    return 0;
+}
+
 
 /**
     * make cn_sched object.
@@ -455,6 +491,9 @@ cn_sched *cn_makeSched(const char *refname, cn_action *action, int CN_100_MILISE
     cn_log("cn_makeSched now %lu:%lu timeout %lu:%lu interval %lu:%lu\n", tpnow.tv_sec, tpnow.tv_nsec,
         sched->nextExecution.tv_sec, sched->nextExecution.tv_nsec, sched->interval.tv_sec, sched->interval.tv_nsec);
     #endif // CN_DEBUG_MODE_CNSCHED_H_LVL
+
+    // set last execution to zero
+    cn_bitzero(&sched->lastExecution, sizeof(struct timespec));
 
     // if schedule type has no identifier, request identifier.
     if(cn_sched_type_id < 1){cn_sched_type_id = cn_typeGetNewID();}
@@ -509,9 +548,9 @@ int cn_schedAdd(cn_sched *sched)
 {
     int n;
     // if scheduler is not running then call starter.
-    if(!running)
+    if(!cn_schedTaskRunning)
     {
-        n = startScheduler();
+        n = cn_startScheduler();
         if(n != 0){return n;}
     }
 
