@@ -85,7 +85,7 @@ int cn_desAction(cn_action *action)
         // Destruct object type definition
         cn_typeDestroy(&action->t);
 
-        #if CN_DEBUG_MODE_FREE == 1 && CN_DEBUG_MODE_CNTYPE_H_LVL == 1
+        #if CN_DEBUG_MODE_FREE == 1 && CN_DEBUG_MODE_CNTYPE_H_LVL >= 1
         cn_log("[DEBUG][file:%s][func:%s][line:%d][%s:%s] dealloc attempt next.\n", __FILE__, __func__, __LINE__, action->refname, CN_DEBUG_TYPENAME);
         #endif // CN_DEBUG_MODE
         // Crash potential.

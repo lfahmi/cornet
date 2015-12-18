@@ -81,9 +81,9 @@ typedef struct cn_action cn_action;
 
 #include "cornet/cndebug.h"
 #undef CN_DEBUG_MODE_CNTYPE_H_LVL
-#define CN_DEBUG_MODE_CNTYPE_H_LVL 1
+//#define CN_DEBUG_MODE_CNTYPE_H_LVL 1
 #undef CN_DEBUG_MODE_FREE
-#define CN_DEBUG_MODE_FREE 0
+//#define CN_DEBUG_MODE_FREE 0
 
 /* TYPE */
 

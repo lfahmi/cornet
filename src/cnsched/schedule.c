@@ -513,7 +513,6 @@ int cn_desSched(cn_sched *sched)
 {
     int n = 0;
     // call action destructor.
-    cn_log("desched called for %s act %s\n", sched->refname, sched->action->refname);
     n = cn_desAction(sched->action);
 
     #if CN_DEBUG_MODE_FREE == 1 && CN_DEBUG_MODE_CNSCHED_H_LVL > 0

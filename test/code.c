@@ -150,7 +150,7 @@ void dominic(int *ptra)
 
 int main(int argc, char *argv[])
 {
-
+    printf("dic size %d list size %d\n", sizeof(cn_dictionary4b), sizeof(cn_list));
     printf("sizeof pthread_mutex_t %d\n", sizeof(pthread_mutex_t));
     cn_action *act = cn_makeAction("test", NULL, NULL, NULL);
     cn_list *pls = cn_makeList("pls", 1, 1, false);

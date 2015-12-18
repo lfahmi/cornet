@@ -6,53 +6,128 @@
 #include <string.h>
 #include <netinet/in.h>
 #include <pthread.h>
+#include "cornet/cntype.h"
 #include "cornet/cnthread.h"
 
 #define CN_SIZEOF_IP4STRLEN
-#define CN_IP4STRLEN 16
+#define cn_sockaddrSTRLEN 16
 
-typedef int (*cn_sockPacketHandler)(void *packet);
+// forward declaration
+struct cn_connection;
+struct cn_buffer;
 
-typedef struct
+/** packet handler */
+typedef int (*cn_cornetsvPacketHandler)(struct cn_connection *conn, struct cn_buffer *buffer);
+
+typedef int (*cn_cornetsvConnectionEvent)(struct cn_connection *conn);
+
+/* buffer.c */
+
+struct cn_buffer
 {
-    char initialized;
-    unsigned char node1;
-    unsigned char node2;
-    unsigned char node3;
-    unsigned char node4;
-    char stringIp[16];
-    unsigned int intIp;
-} cn_ip4;
-
-typedef struct
-{
-    char initialized;
-    unsigned int fd;
-    pthread_t listenerThreadId;
-    cn_ip4 ip4;
-    int sock;
-    struct sockaddr_in addr;
-    cn_sockPacketHandler handler;
-} cn_sock;
-
-typedef struct
-{
-    char *b;
-    char *originalb;
+    unsigned char *b;
+    unsigned char *originalb;
     uint16_t perSize;
     uint16_t length;
     uint16_t originallength;
     uint16_t capacity;
     pthread_mutex_t key;
-} cn_buffer;
+};
+typedef struct cn_buffer cn_buffer;
 
-typedef struct
+/* addrmap.c */
+
+struct cn_addrmap
 {
-    cn_sock *listener;
-    struct sockaddr_in from;
-    socklen_t fromlen;
+    const char *refname;
+    cn_dictionary4b **dics;
+};
+typedef struct cn_addrmap cn_addrmap;
+
+/* util.c */
+
+struct cn_sockaddr
+{
+    unsigned char node1;
+    unsigned char node2;
+    unsigned char node3;
+    unsigned char node4;
+    unsigned int intIp;
+    char stringIp[16];
+    in_port_t port;
+    struct sockaddr_in sockaddr_in;
+};
+typedef struct cn_sockaddr cn_sockaddr;
+
+/* main.c */
+
+/**
+    * Cornet Listener object structure definition
+    * optimized network protocol for lightweight and speed
+    */
+struct cn_cornetsv
+{
+    pthread_t listenerThreadId;
+    cn_sockaddr addr;
+    int sock;
+    cn_cornetsvPacketHandler handler;
+    cn_cornetsvConnectionEvent onConnect;
+    cn_cornetsvConnectionEvent onDisconnect;
+    cn_threadpool *worker;
+    cn_list *conns;
+    cn_addrmap *addrmap;
+};
+typedef struct cn_cornetsv cn_cornetsv;
+
+/* util.c */
+
+/// type id for connection object
+extern cn_type_id_t cn_connection_type_id;
+
+/**
+    * connection object structure definition
+    * this object is used in packet handler
+    * and send operation
+    */
+struct cn_connection
+{
+    cn_type t;
+    const char *refname;
+    cn_cornetsv *listener;
+    cn_sockaddr remoteaddr;
+    unsigned long pingref;
+    cn_cornetsvPacketHandler handler;
+};
+typedef struct cn_connection cn_connection;
+
+/*
+struct cn_cornetPacket
+{
+    cn_connection *conn;
     cn_buffer *buffer;
-} cn_udpPacket;
+};
+typedef struct cn_cornetPacket cn_cornetPacket;
+*/
+
+/* END OF DEFINITIONS */
+
+/* buffer.c */
+
+extern cn_buffer *cn_createBuffer(uint16_t perSize, uint16_t length);
+
+extern void cn_desBuffer(cn_buffer *target);
+
+/* addrmap.c */
+
+extern cn_addrmap *cn_makeAddrmap(const char *refname);
+
+extern int cn_addrmapSet(cn_addrmap *addrmap, cn_sockaddr *ip, void *object);
+
+extern void *cn_addrmapGet(cn_addrmap *taddrmap, cn_sockaddr *addr);
+
+extern int cn_addrmapRemove(cn_addrmap *taddrmap, cn_sockaddr *addr);
+
+/* sockaddr utils.c */
 
 /*
 Create IPv4 binary type from string.
@@ -60,17 +135,23 @@ return 0 if failed.
 */
 extern in_addr_t cn_strToInaddr(char *ip4Str);
 
-extern int cn_inaddrToStr(char CN_SIZEOF_IP4STRLEN *__dest, in_addr_t ip4addrt);
+extern int cn_sockaddrFrom_sockaddr_in(cn_sockaddr *target, struct sockaddr_in *addrt);
 
-extern int cn_createip4(cn_ip4 *target, in_addr_t *a);
+extern int cn_makeSockAddr(cn_sockaddr *target, char *ip4, uint16_t port);
 
-extern cn_buffer *cn_createBuffer(uint16_t perSize, uint16_t length);
+/* CONNECTION utils.c */
 
-extern void cn_desBuffer(cn_buffer *target);
+extern cn_connection *cn_makeConnection(const char *refname, cn_cornetsv *listener, cn_sockaddr remoteaddr);
+
+extern int cn_desConnection(cn_connection *conn);
 
 
-//MAIN.C
+/* main.c */
 
-extern int cn_startUDPListener(cn_sock *fd, char *__ip4, uint16_t port, uint32_t bufferSize, cn_sockPacketHandler handler);
+extern int cn_startUDPListener(cn_cornetsv *fd, char *__ip4, uint16_t port, uint32_t bufferSize, cn_cornetsvPacketHandler handler);
+
+extern int cn_connSend(cn_connection *conn, cn_buffer *buffer);
+
+// client.c
 
 #endif
