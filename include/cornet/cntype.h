@@ -22,6 +22,8 @@ typedef void *(*cn_voidFunc)(void *args);
 /* TYPE */
 typedef unsigned char cn_type_space_tag_size_t;
 
+extern cn_type_space_tag_size_t cn_type_space_tag_bof, cn_type_space_tag_eof;
+
 typedef uint64_t cn_type_id_t;
 
 /**   cn_type definition
@@ -79,6 +81,17 @@ struct cn_action
 
 typedef struct cn_action cn_action;
 
+/* MACROS */
+
+#define CN_TYPE_IS(_cn_macro_var_target, _cn_macro_var_type_id) \
+    (((_cn_macro_var_target) != NULL) && (((cn_type *)(_cn_macro_var_target))->bof == cn_type_space_tag_bof) && \
+    (((cn_type *)(_cn_macro_var_target))->eof == cn_type_space_tag_eof) && (((cn_type *)(_cn_macro_var_target))->type_id == _cn_macro_var_type_id))
+
+#define CN_IS_TYPE(_cn_macro_var_target) \
+    (((_cn_macro_var_target) != NULL) && (((cn_type *)(_cn_macro_var_target))->bof == cn_type_space_tag_bof) && \
+    (((cn_type *)(_cn_macro_var_target))->eof == cn_type_space_tag_eof))
+
+
 #include "cornet/cndebug.h"
 #undef CN_DEBUG_MODE_CNTYPE_H_LVL
 //#define CN_DEBUG_MODE_CNTYPE_H_LVL 1
@@ -92,8 +105,6 @@ extern cn_type_id_t cn_typeGetNewID();
 extern void cn_typeInit(cn_type *target, cn_type_id_t type_id);
 
 extern int cn_typeAppendObject(void *target, void *object);
-
-extern bool cn_typeIs(void *target, cn_type_id_t type_id);
 
 extern void *cn_typeGet(void *target, cn_type_id_t whatType);
 
