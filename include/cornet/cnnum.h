@@ -80,6 +80,33 @@ struct cn_dictionary4b
 
 typedef struct cn_dictionary4b cn_dictionary4b;
 
+/* MACROS DEFINITION */
+
+/**
+    * usage CN_LIST_FOREACH(item pointer, cn_list){statement body}
+    */
+
+#define CN_LIST_FOREACH(item, list) \
+    for((item) = *(list)->b; \
+    (void *)(item) < (*(list)->b + ((list)->cnt * (list)->perSize)); \
+    (item) += (list)->perSize)
+/*
+#define CN_QUEUE_FOREACH(item, queue) \
+    for((item) = (queue)->frontNode; (item) != NULL; (item) = (item)->next) */
+
+/**
+    * usage CN_QUEUE_FOREACH(item pointer, cn_queue, {nested statement; nested statement; ...});
+    */
+
+#define CN_QUEUE_FOREACH(item, queue, body) \
+    {struct cn_queueNode *_cn_macro_qnode = (queue)->frontNode; \
+    while(_cn_macro_qnode != NULL) \
+    { \
+        (item) = _cn_macro_qnode->item; \
+        body \
+        _cn_macro_qnode = _cn_macro_qnode->next; \
+    }}
+
 /* END OF DEFINITION */
 
 #include "cornet/cndebug.h"
