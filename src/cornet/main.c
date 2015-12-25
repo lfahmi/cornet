@@ -23,6 +23,9 @@ typedef struct cn_udpPacket cn_udpPacket;
 #define PCORNET_PING 3
 #define PCORNET_DISCONNECT 4
 
+#define UDP_SEND(asent, asocket, acn_buffer, asockaddr_in) \
+    asent = sendto(asocket, acn_buffer->originalb, acn_buffer->originallength, 0, (const struct sockaddr *)&asockaddr_in, sizeof(struct sockaddr))
+
 static void packetError(cn_udpPacket *pack)
 {
 
@@ -167,7 +170,8 @@ int cn_startUDPListener(cn_cornetsv *fd, char *ip4Str, uint16_t port, uint32_t b
 
 int cn_connSend(cn_connection *conn, cn_buffer *buffer)
 {
-    int n = sendto(conn->listener->sock, buffer->originalb, buffer->originallength, 0, (const struct sockaddr *)&conn->remoteaddr.sockaddr_in, sizeof(struct sockaddr));
+    UDP_SEND(int n, conn->listener->sock, buffer, conn->remoteaddr.sockaddr_in);
+    //int n = sendto(conn->listener->sock, buffer->originalb, buffer->originallength, 0, (const struct sockaddr *)&conn->remoteaddr.sockaddr_in, sizeof(struct sockaddr));
     if(n == buffer->originallength){return 0;}
     return -1;
 }
