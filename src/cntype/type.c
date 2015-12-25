@@ -1,6 +1,6 @@
 #include "cornet/cntype.h"
 
-static cn_type_space_tag_size_t bof = 85, eof = 170;
+cn_type_space_tag_size_t cn_type_space_tag_bof = 85, cn_type_space_tag_eof = 170;
 
 static cn_type_id_t cn_type_last_id = 1;
 
@@ -17,9 +17,9 @@ cn_type_id_t cn_typeGetNewID()
 void cn_typeInit(cn_type *target, cn_type_id_t type_id)
 {
     // Set the begin of file
-    target->bof = bof;
+    target->bof = cn_type_space_tag_bof;
     // Set the end of file
-    target->eof = eof;
+    target->eof = cn_type_space_tag_eof;
     // Set the type id
     target->type_id = type_id;
     // Set objects to null
@@ -38,14 +38,11 @@ void cn_typeInit(cn_type *target, cn_type_id_t type_id)
 int cn_typeAppendObject(void *target, void *object)
 {
     // Defensive code.
-    if(target == NULL || object == NULL){return -1;}
+    if(!CN_IS_TYPE(target)){return -200;}
+    if(!CN_IS_TYPE(object)){return -300;}
 
     // Parse the target and object
     cn_type *s = target, *o = object;
-
-    // Check target and object if it's cn_type class
-    if(s->bof != bof || s->eof != eof){return -200;}
-    if(o->bof != bof || o->eof != eof){return -300;}
 
     // lock the target
     pthread_mutex_lock(&s->key);
@@ -55,8 +52,10 @@ int cn_typeAppendObject(void *target, void *object)
     int n = 0;
 
     // prepare parameter
-    bool sHasList = cn_typeIs(s->objs, cn_list_type_id);
-    bool oHasList = cn_typeIs(o->objs, cn_list_type_id);
+    bool sHasList = false;
+    if(CN_TYPE_IS(s->objs, cn_list_type_id)){sHasList = true;}
+    bool oHasList = false;
+    if(CN_TYPE_IS(o->objs, cn_list_type_id)){oHasList = true;}
 
     if(sHasList && oHasList)
     {
@@ -78,7 +77,7 @@ int cn_typeAppendObject(void *target, void *object)
             {
                 // declare work item
                 cn_type *item = items[i];
-                if(item->bof == bof && item->eof == eof)
+                if(item->bof == cn_type_space_tag_bof && item->eof == cn_type_space_tag_eof)
                 {
                     // item is cn_type, set item object-list by subject object-list
                     // lock the item, in any case there is someone using the item
@@ -113,7 +112,7 @@ int cn_typeAppendObject(void *target, void *object)
             {
                 // declare work item
                 cn_type *item = items[i];
-                if(item->bof == bof && item->eof == eof)
+                if(item->bof == cn_type_space_tag_bof && item->eof == cn_type_space_tag_eof)
                 {
                     // item is cn_type, set item object-list by object object-list
                     // lock the item, in any case there is someone using the item
@@ -172,13 +171,6 @@ int cn_typeAppendObject(void *target, void *object)
     return n;
 }
 
-bool cn_typeIs(void *target, cn_type_id_t type_id)
-{
-    cn_type *s = target;
-    if(s == NULL || s->bof != bof || s->eof != eof || s->type_id != type_id){return false;}
-    return true;
-}
-
 /**
     * Get object of type matching type id from target
     * @param target : target type to fetch result.
@@ -188,23 +180,24 @@ bool cn_typeIs(void *target, cn_type_id_t type_id)
 void *cn_typeGet(void *target, cn_type_id_t whatType)
 {
     // Defensive code, type id never higher than signed id
-    if(target == NULL || whatType == 0 || whatType > cn_type_last_id){return NULL;}
+    if(whatType == 0 || whatType > cn_type_last_id || !CN_IS_TYPE(target)){return NULL;}
+
 
     // parse the target
     cn_type *s = target;
 
-    // check if target is cn_type object and object list is not null
-    if(s->bof != bof || s->eof != eof){return NULL;}
-
     // subject it self is what we look for, return subject
     if(s->type_id == whatType){return s;}
 
-    // subject is not match, check object list if its exist before look inside.
-    if(cn_typeIs(s->objs, cn_list_type_id) == false){return NULL;}
-
-    // take object list address, lock the target and list
-    cn_list *objs = s->objs;
+    // subject is not match, lets look for it inside list
+    // lock the target
     pthread_mutex_lock(&s->key);
+
+    // lets check the list
+    cn_list *objs = s->objs;
+    if(CN_TYPE_IS(objs, cn_list_type_id) == false){pthread_mutex_unlock(&s->key); return NULL;}
+
+    // lock the list access
     pthread_mutex_lock(&objs->key);
 
     // declare result pointer and iterator
@@ -216,7 +209,7 @@ void *cn_typeGet(void *target, cn_type_id_t whatType)
     for(i = 0; i < s->objs->cnt; i++)
     {
         // check each object
-        if(items[i]->type_id == whatType && items[i]->bof == bof && items[i]->eof == eof)
+        if(items[i]->type_id == whatType && items[i]->bof == cn_type_space_tag_bof && items[i]->eof == cn_type_space_tag_eof)
         {
             // we found the object that is the type we look for
             // set the result by item found and break the search loop
@@ -240,14 +233,14 @@ void *cn_typeGet(void *target, cn_type_id_t whatType)
 int cn_typeDestroy(cn_type *target)
 {
     // Defensive code
-    if(target->bof != bof || target->eof != eof){return -1;}
+    if(!CN_IS_TYPE(target)){return -1;}
 
     // lock the target
     pthread_mutex_lock(&target->key);
 
     // declare status
     int n = 0;
-    if(target->objs != NULL && cn_typeIs(target->objs, cn_list_type_id) == true)
+    if(CN_TYPE_IS(target->objs, cn_list_type_id))
     {
         // target object-list is not null, lets do something
         if(target->objs->cnt > 1)

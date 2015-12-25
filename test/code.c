@@ -151,10 +151,25 @@ void dominic(int *ptra)
 int main(int argc, char *argv[])
 {
 
+    cn_queue *myQue = cn_makeQue("testQue", sizeof(char));
+    cn_queEn(myQue, "1");
+    cn_queEn(myQue, "2");
+    cn_queEn(myQue, "3");
+    char *item;
+    CN_QUEUE_FOREACH(item, myQue,
+    {
+        printf("%c\n", *item);
+    });
+    cn_desQue(myQue, NULL);
     printf("sizeof pthread_mutex_t %d\n", sizeof(pthread_mutex_t));
     cn_action *act = cn_makeAction("test", NULL, NULL, NULL);
     cn_list *pls = cn_makeList("pls", 1, 1, false);
     cn_listInsertAt(pls, pls->cnt, "1234567890", 11);
+    char *cChar;
+    CN_LIST_FOREACH(cChar, pls)
+    {
+        printf("%c\n", *cChar);
+    }
     cn_typeAppendObject(pls, act);
     cn_action *actparsed = cn_typeGet(pls, cn_action_type_id);
     printf("ref name of act parsed %s\n", actparsed->refname);

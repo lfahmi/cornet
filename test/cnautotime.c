@@ -13,6 +13,10 @@
 int connectUdp(int *sock, struct sockaddr_in *server, char *host, int port)
 {
     *sock = socket(AF_INET, SOCK_DGRAM, 0);
+    struct sockaddr_in myaddr;
+    myaddr.sin_addr.s_addr = INADDR_ANY;
+    myaddr.sin_port = 27629;
+    bind(*sock, (const struct sockaddr *)&myaddr, sizeof(struct sockaddr));
     if(*sock == 0){return -1;}
     server->sin_family = AF_INET;
     struct hostent *hp;
