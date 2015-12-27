@@ -395,6 +395,17 @@ int cn_listRemoveAt(cn_list *tlist, int indx)
 }
 
 /**
+    * Remove item from list at index, without mutex locking.
+    * @param tlist : target list.
+    * @param indx : index of item to be removed.
+    */
+int cn_listRemoveAtULOCK(cn_list *tlist, int indx)
+{
+    if(tlist == NULL || indx < 0){return -1;}
+    return listSplice(tlist, indx, 1, NULL);
+}
+
+/**
     * Look for Items matching in the list and remove it from the list.
     * @param tlist : Target list.
     * @param item : Items to be removed.

@@ -87,9 +87,10 @@ typedef struct cn_dictionary4b cn_dictionary4b;
     */
 
 #define CN_LIST_FOREACH(item, list) \
-    for((item) = *(list)->b; \
+    void *__var_cn_macro_item; \
+    for(__var_cn_macro_item = *(list)->b, (item) = __var_cn_macro_item; \
     (void *)(item) < (*(list)->b + ((list)->cnt * (list)->perSize)); \
-    (item) += (list)->perSize)
+    __var_cn_macro_item += (list)->perSize, (item) = __var_cn_macro_item)
 /*
 #define CN_QUEUE_FOREACH(item, queue) \
     for((item) = (queue)->frontNode; (item) != NULL; (item) = (item)->next) */
@@ -195,6 +196,13 @@ extern int cn_listSplice(cn_list *tlist, int startIndx, int len, cn_syncFuncPTR 
     * @param indx : index of item to be removed.
     */
 extern int cn_listRemoveAt(cn_list *tlist, int indx);
+
+/**
+    * Remove item from list at index, without mutex locking.
+    * @param tlist : target list.
+    * @param indx : index of item to be removed.
+    */
+extern int cn_listRemoveAtULOCK(cn_list *tlist, int indx);
 
 /**
     * Look for Items matching in the list and remove it from the list.

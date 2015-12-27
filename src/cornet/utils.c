@@ -65,7 +65,7 @@ int cn_makeSockAddr(cn_sockaddr *target, char *ip4, uint16_t port)
     struct sockaddr_in tmpaddr;
     tmpaddr.sin_family = AF_INET;
     tmpaddr.sin_addr.s_addr = cn_strToInaddr(ip4);
-    tmpaddr.sin_port = port;
+    tmpaddr.sin_port = htons(port);
     return cn_sockaddrFrom_sockaddr_in(target, &tmpaddr);
 }
 
@@ -95,7 +95,7 @@ void cn_desBuffer(cn_buffer *target)
 
 cn_type_id_t cn_connection_type_id = 0;
 
-cn_connection *cn_makeConnection(const char *refname, cn_cornetsv *listener, cn_sockaddr remoteaddr)
+cn_connection *cn_makeConnection(const char *refname, cn_socket *listener, cn_sockaddr remoteaddr)
 {
     // Defensive code
     if(listener == NULL){return NULL;}

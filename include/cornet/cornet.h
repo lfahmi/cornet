@@ -17,9 +17,15 @@ struct cn_connection;
 struct cn_buffer;
 
 /** packet handler */
-typedef int (*cn_cornetsvPacketHandler)(struct cn_connection *conn, struct cn_buffer *buffer);
+typedef int (*cn_socketPacketHandler)(struct cn_connection *conn, struct cn_buffer *buffer);
 
-typedef int (*cn_cornetsvConnectionEvent)(struct cn_connection *conn);
+typedef int (*cn_socketConnectionEvent)(struct cn_connection *conn);
+
+typedef int (*cn_socketAddressEvent)(struct sockaddr_in *addr, int EVENT_STATUS_CODE);
+
+// ENUMS
+
+enum CN_SOCK_TRY_CONN_FAIL{SID = 1, NORESPONSE = 2}
 
 /* buffer.c */
 
@@ -65,19 +71,20 @@ typedef struct cn_sockaddr cn_sockaddr;
     * Cornet Listener object structure definition
     * optimized network protocol for lightweight and speed
     */
-struct cn_cornetsv
+struct cn_socket
 {
     pthread_t listenerThreadId;
     cn_sockaddr addr;
     int sock;
-    cn_cornetsvPacketHandler handler;
-    cn_cornetsvConnectionEvent onConnect;
-    cn_cornetsvConnectionEvent onDisconnect;
+    cn_socketPacketHandler handler;
+    cn_socketConnectionEvent onConnect;
+    cn_socketConnectionEvent onDisconnect;
     cn_threadpool *worker;
     cn_list *conns;
     cn_addrmap *addrmap;
+    cn_list *tryConnect;
 };
-typedef struct cn_cornetsv cn_cornetsv;
+typedef struct cn_socket cn_socket;
 
 /* util.c */
 
@@ -93,10 +100,12 @@ struct cn_connection
 {
     cn_type t;
     const char *refname;
-    cn_cornetsv *listener;
+    uint16_t connSessionID;
+    cn_socket *listener;
     cn_sockaddr remoteaddr;
-    unsigned long pingref;
-    cn_cornetsvPacketHandler handler;
+    uint32_t pingref;
+    int pingStatus;
+    cn_socketPacketHandler handler;
 };
 typedef struct cn_connection cn_connection;
 
@@ -141,14 +150,14 @@ extern int cn_makeSockAddr(cn_sockaddr *target, char *ip4, uint16_t port);
 
 /* CONNECTION utils.c */
 
-extern cn_connection *cn_makeConnection(const char *refname, cn_cornetsv *listener, cn_sockaddr remoteaddr);
+extern cn_connection *cn_makeConnection(const char *refname, cn_socket *listener, cn_sockaddr remoteaddr);
 
 extern int cn_desConnection(cn_connection *conn);
 
 
 /* main.c */
 
-extern int cn_startUDPListener(cn_cornetsv *fd, char *__ip4, uint16_t port, uint32_t bufferSize, cn_cornetsvPacketHandler handler);
+extern int cn_startUDPListener(cn_socket *fd, char *__ip4, uint16_t *port, uint32_t bufferSize, cn_socketPacketHandler handler);
 
 extern int cn_connSend(cn_connection *conn, cn_buffer *buffer);
 
