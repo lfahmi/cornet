@@ -155,7 +155,7 @@ static void *cornet_protocol(void *arg)
                 {
                     if(tryconn.connSessionID != connectionSessionID)
                     {
-                        tryconn.onFailed(&pack->from);
+                        tryconn.onFailed(&pack->from, CN_SOCK_TRY_CONN_FAIL_SID);
                         packetError(pack);
                         break; // !EP987
                     }
@@ -315,7 +315,7 @@ static void *checkConnectAttemptStatus(void *arg)
     cn_sockaddr cnsockaddr;
     cn_sockaddrFrom_sockaddr_in(&cnsockaddr, &tryconn.addr);
     if(cn_addrmapGet(tryconn.listener->addrmap, &cnsockaddr) == NULL)
-    {tryconn.onFailed(&tryconn.addr);}
+    {tryconn.onFailed(&tryconn.addr, CN_SOCK_TRY_CONN_FAIL_NORESPONSE);}
     return NULL;
 }
 

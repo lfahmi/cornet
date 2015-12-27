@@ -25,7 +25,7 @@ typedef int (*cn_socketAddressEvent)(struct sockaddr_in *addr, int EVENT_STATUS_
 
 // ENUMS
 
-enum CN_SOCK_TRY_CONN_FAIL{SID = 1, NORESPONSE = 2}
+enum CN_SOCK_TRY_CONN_FAIL{CN_SOCK_TRY_CONN_FAIL_SID = 1, CN_SOCK_TRY_CONN_FAIL_NORESPONSE = 2};
 
 /* buffer.c */
 
@@ -158,6 +158,8 @@ extern int cn_desConnection(cn_connection *conn);
 /* main.c */
 
 extern int cn_startUDPListener(cn_socket *fd, char *__ip4, uint16_t *port, uint32_t bufferSize, cn_socketPacketHandler handler);
+
+extern int cn_socketConnect(cn_socket *sock, char * ip4, int port, cn_socketConnectionEvent onSuccess, cn_socketAddressEvent onFailed);
 
 extern int cn_connSend(cn_connection *conn, cn_buffer *buffer);
 

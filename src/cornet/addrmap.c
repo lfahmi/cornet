@@ -6,7 +6,7 @@ cn_addrmap *cn_makeAddrmap(const char *refname)
     result->dics = malloc(sizeof(cn_addrmap *) * 1000);
     result->refname = refname;
     int i;
-    for(i = 0; i < 10000; i++)
+    for(i = 0; i < 10; i++)
     {
         result->dics[i] = cn_makeDict4b("cn_addrmap.dics");
     }
@@ -17,6 +17,7 @@ static unsigned int getDicIndexFromSockAddr(cn_sockaddr *ip)
 {
     unsigned int dicIndex = 0;
     int i;
+    /*
     for(i = 1; i <= 10; i++)
     {
         if(ip->node1 < 26 * i)
@@ -45,6 +46,8 @@ static unsigned int getDicIndexFromSockAddr(cn_sockaddr *ip)
             dicIndex += i * 1;
         }
     }
+    */
+    i = ip->node4 % 10;
     return dicIndex;
 }
 
