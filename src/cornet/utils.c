@@ -74,13 +74,13 @@ cn_buffer *cn_createBuffer(uint16_t perSize, uint16_t length)
     result->length = 0;
     result->originallength = 0;
     result->capacity = length;
-    pthread_mutex_init(&result->key, NULL);
+    cn_mutex_init(&result->key, NULL);
     return result;
 }
 
 void cn_desBuffer(cn_buffer *target)
 {
-    pthread_mutex_destroy(&target->key);
+    cn_mutex_destroy(&target->key);
     free(target->b);
     free(target);
 }

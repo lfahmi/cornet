@@ -5,7 +5,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <netinet/in.h>
-#include <pthread.h>
 #include "cornet/cnthread.h"
 
 #define CN_SIZEOF_IP4STRLEN
@@ -43,7 +42,7 @@ typedef struct
     uint16_t length;
     uint16_t originallength;
     uint16_t capacity;
-    pthread_mutex_t key;
+    cn_mutex_t key;
 } cn_buffer;
 
 typedef struct

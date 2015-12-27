@@ -26,7 +26,7 @@ cn_queue *cn_makeQue(const char *refname, uint16_t perSize)
 
     /// initialize key for queue
     result->refname = refname;
-    pthread_mutex_init(&result->key, NULL);
+    cn_mutex_init(&result->key, NULL);
     result->cnt = 0;
     result->perSize = 0;
     result->frontNode = NULL;
@@ -67,7 +67,7 @@ int cn_desQue(cn_queue *tque, cn_syncFuncPTR itemDestructor)
     cn_typeDestroy(&tque->t);
 
     /// Destroy queue key
-    pthread_mutex_destroy(&tque->key);
+    cn_mutex_destroy(&tque->key);
     #if CN_DEBUG_MODE_FREE == 1 && CN_DEBUG_MODE_CNNUM_H_LVL > 0
     cn_log("[DEBUG][file:%s][func:%s][line:%d][%s:%s] dealloc attempt next.\n", __FILE__, __func__, __LINE__, tque->refname, CN_DEBUG_TYPENAME);
     #endif // CN_DEBUG_MODE
@@ -84,6 +84,7 @@ int cn_desQue(cn_queue *tque, cn_syncFuncPTR itemDestructor)
     */
 int cn_queEn(cn_queue *tque, void *item)
 {
+    __sync_synchronize();
     // Defensive code.
     if(tque == NULL || item == NULL) {return -1;}
 
@@ -96,7 +97,7 @@ int cn_queEn(cn_queue *tque, void *item)
     tmpNode->next = NULL;
 
     // lock queue
-    pthread_mutex_lock(&tque->key);
+    cn_mutex_lock(&tque->key);
     if(tque->rearNode == NULL || tque->frontNode == NULL)
     {
         // this is sole item in queue. set queue count to 0 first
@@ -116,7 +117,7 @@ int cn_queEn(cn_queue *tque, void *item)
 
     // finnaly increase queue count then unlock queue
     tque->cnt++;
-    pthread_mutex_unlock(&tque->key);
+    cn_mutex_unlock(&tque->key);
 
     // operation finished fine
     return 0;
@@ -128,19 +129,22 @@ int cn_queEn(cn_queue *tque, void *item)
     */
 void *cn_queDe(cn_queue *tque)
 {
+    __sync_synchronize();
     // Defensive code.
     if(tque == NULL){return NULL;}
-    if(tque->cnt < 1){return NULL;}
-    if(tque->frontNode == NULL){return NULL;}
+
+    // lock the queue
+    cn_mutex_lock(&tque->key);
+
+    // Defensive code.
+    if(tque->cnt < 1){cn_mutex_unlock(&tque->key); return NULL;}
+    if(tque->frontNode == NULL){cn_mutex_unlock(&tque->key); return NULL;}
 
     // declare temporary node, set by front node of queue.
     struct cn_queueNode *tmpNode = tque->frontNode;
 
     // result item set by tmp node item.
     void *result = tmpNode->item;
-
-    // lock the queue
-    pthread_mutex_lock(&tque->key);
     if(tque->frontNode == tque->rearNode)
     {
         // seemslike tmp node was the only node in queue
@@ -158,7 +162,7 @@ void *cn_queDe(cn_queue *tque)
 
     // finnaly decrease queue count then we can unlock the queue
     tque->cnt--;
-    pthread_mutex_unlock(&tque->key);
+    cn_mutex_unlock(&tque->key);
 
     // return the result
     return result;

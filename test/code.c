@@ -161,7 +161,7 @@ int main(int argc, char *argv[])
         printf("%c\n", *item);
     });
     cn_desQue(myQue, NULL);
-    printf("sizeof pthread_mutex_t %d\n", sizeof(pthread_mutex_t));
+    printf("sizeof cn_mutex_t %d\n", sizeof(cn_mutex_t));
     cn_action *act = cn_makeAction("test", NULL, NULL, NULL);
     cn_list *pls = cn_makeList("pls", 1, 1, false);
     cn_listInsertAt(pls, pls->cnt, "1234567890", 11);
@@ -223,16 +223,19 @@ int main(int argc, char *argv[])
     printElapsed();
     cn_log("tp address %d\n\n", (int)tp);
 
-    pthread_mutex_lock(&tp->jobsKey);
-    cn_action *job = cn_makeAction("printerRepeated", printer, (void *)i, NULL);
+    cn_action *job = cn_makeAction("main.printerRepeated", printer, (void *)i, NULL);
     job->callSelfDestructor = false;
-    for(i = 0; i < 20000; i++)
+
+    //cn_mutex_lock(&tp->jobsKey);
+    for(i = 0; i < 1000000; i++)
     {
-        //cn_thplEnq(tp, job);
-        cn_queEn(tp->actions, job);
-        pthread_cond_signal(&tp->jobsCond);
+        cn_thplEnq(tp, job);
+        //cn_queEn(tp->actions, job);
+        //cn_cond_signal(&tp->jobsCond);
     }
-    pthread_mutex_unlock(&tp->jobsKey);
+    //cn_mutex_unlock(&tp->jobsKey);
+
+    printf("<<<<<<<<>>>>>>>> COND %d\n", __sync_fetch_and_add(&tp->jobsCond.cond, 0));
 
     cn_thplEnq(tp, cn_makeAction("printTimeDone", (cn_voidFunc)printElapsed, NULL, NULL));
     printf("just done submit jobs\n");

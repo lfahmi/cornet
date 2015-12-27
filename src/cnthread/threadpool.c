@@ -1,5 +1,7 @@
 #include "cornet/cnthread.h"
 
+static struct timespec __zeroTime = {.tv_sec = 0, .tv_nsec = 0};
+
 /** threadpool type id */
 cn_type_id_t cn_threadpool_type_id = 0;
 
@@ -89,8 +91,8 @@ static void *threadWork(void *arg)
     cn_threadpoolWorker *thread = arg;
 
     // Get the job queue lock key and condition.
-    pthread_mutex_t *key = &thread->parent->jobsKey;
-    pthread_cond_t *cond = &thread->parent->jobsCond;
+    cn_mutex_t *key = &thread->parent->jobsKey;
+    cn_cond_t *cond = &thread->parent->jobsCond;
 
     // Get the working worker counter
     uint32_t *workingThread = &thread->parent->workingThread;
@@ -111,30 +113,31 @@ static void *threadWork(void *arg)
     while(*running == true)
     {
         // Thread is still allowed to run, keep doing our job.
-        // Lock the jobs queue
-        pthread_mutex_lock(key);
-        if(actions->cnt == 0)
+        if(__sync_fetch_and_add(&actions->cnt, 0) == 0)
         {
             #if CN_DEBUG_MODE_CNTHREAD_H_LVL >= 10
             cn_log("worker thread %d entering wait\n", (int)thread->threadid);
             #endif // CN_DEBUG_MODE_CNTHREAD_H_LVL
 
+            // Lock the jobs queue
+            cn_mutex_lock(key);
+
             // The job queue is empty. lets wait for a change of condition.
-            pthread_cond_wait(cond, key);
+            cn_cond_wait(cond, key);
+
+            // Unlock the jobs queue
+            cn_mutex_unlock(key);
 
             if(!*running)
             {
                 // Condition has changed, it seems this thread is not allowed
                 // to run anymore, go to thread termination.
-                pthread_mutex_unlock(key);
+                // cn_mutex_unlock(key);
                 break;
             }
         }
         // Dequeue job from jobs queue
         cn_action *work = cn_typeGet(cn_queDe(actions), cn_action_type_id);
-
-        // Unlock the jobs queue
-        pthread_mutex_unlock(key);
 
         if(work != NULL)
         {
@@ -184,7 +187,7 @@ static void *threadWork(void *arg)
         in the threadpool, so we need to lock the thread list for termination
         at this level. so we can get the index and remove it safely.
         */
-    pthread_mutex_lock(&thread->parent->threadWorkerListKey);
+    cn_mutex_lock(&thread->parent->threadWorkerListKey);
 
     // get the thread list
     cn_list *threads = thread->parent->threads;
@@ -199,7 +202,7 @@ static void *threadWork(void *arg)
     #endif // CN_DEBUG_MODE_CNTHREAD_H_LVL
 
     // finnaly unlock the list
-    pthread_mutex_unlock(&thread->parent->threadWorkerListKey);
+    cn_mutex_unlock(&thread->parent->threadWorkerListKey);
 
     // dealloc the thread structure
     free(thread);
@@ -229,9 +232,9 @@ cn_threadpool *cn_makeThpl(const char *refname, int threadCnt)
     result->refname = refname;
 
     // Initialize keys and condition.
-    pthread_mutex_init(&result->jobsKey, NULL);
-    pthread_mutex_init(&result->threadWorkerListKey, NULL);
-    pthread_cond_init(&result->jobsCond, NULL);
+    cn_mutex_init(&result->jobsKey, NULL);
+    cn_mutex_init(&result->threadWorkerListKey, NULL);
+    cn_cond_init(&result->jobsCond, NULL);
     pthread_attr_init(&result->threadAttr);
     pthread_attr_setdetachstate(&result->threadAttr, PTHREAD_CREATE_DETACHED);
 
@@ -259,9 +262,9 @@ cn_threadpool *cn_makeThpl(const char *refname, int threadCnt)
     cn_log("threadpool creation error %s\n", refname);
     #endif // CN_DEBUG_MODE_CNTHREAD_H_LVL
     cn_desList(result->threads);
-    pthread_mutex_destroy(&result->jobsKey);
-    pthread_mutex_destroy(&result->threadWorkerListKey);
-    pthread_cond_destroy(&result->jobsCond);
+    cn_mutex_destroy(&result->jobsKey);
+    cn_mutex_destroy(&result->threadWorkerListKey);
+    cn_cond_destroy(&result->jobsCond);
     pthread_attr_destroy(&result->threadAttr);
     free(result);
     return NULL;
@@ -280,18 +283,26 @@ int cn_thplEnq(cn_threadpool *thpl, cn_action *action)
     {return -1;}
 
     // Lock the jobs queue
-    pthread_mutex_lock(&thpl->jobsKey);
+    //cn_mutex_lock(&thpl->jobsKey);
 
     // Enqueue the job to jobs queue, if successful, signal waiting thread.
-    if(cn_queEn(thpl->actions, action) == 0){pthread_cond_signal(&thpl->jobsCond);}
-    // If failed, unlock the jobs queue, then return failure.
-    else {pthread_mutex_unlock(&thpl->jobsKey); return -1;}
+    if(cn_queEn(thpl->actions, action) == 0)
+    {
+        cn_cond_signal(&thpl->jobsCond);
+        //nanosleep(&__zeroTime, NULL);
+    }
+    else
+    {
+        // If failed, unlock the jobs queue, then return failure.
+        //cn_mutex_unlock(&thpl->jobsKey);
+        return -1;
+    }
     #if CN_DEBUG_MODE_CNTHREAD_H_LVL >= 10
     cn_log("threadpool enq success\n");
     #endif // CN_DEBUG_MODE_CNTHREAD_H_LVL
 
     // enqueue job finished, unlock the queue then return fine.
-    pthread_mutex_unlock(&thpl->jobsKey);
+    //cn_mutex_unlock(&thpl->jobsKey);
     return 0;
 }
 
@@ -302,13 +313,13 @@ int cn_thplEnq(cn_threadpool *thpl, cn_action *action)
 int cn_thplCancelAll(cn_threadpool *thpl)
 {
     // lock the jobs queue
-    pthread_mutex_lock(&thpl->jobsKey);
+    cn_mutex_lock(&thpl->jobsKey);
 
     // empty the jobs queue.
     int n = cn_queEmpty(thpl->actions, cn_desActionNumerableInterface);
 
     // unlock the jobs queue then return execution status.
-    pthread_mutex_unlock(&thpl->jobsKey);
+    cn_mutex_unlock(&thpl->jobsKey);
     return n;
 }
 
@@ -341,7 +352,7 @@ static int ThplIncWorkerRealWork(void *args)
     int retCode = 0;
 
     // lock the thread worker list.
-    pthread_mutex_lock(&thpl->threadWorkerListKey);
+    cn_mutex_lock(&thpl->threadWorkerListKey);
 
     // record the thread count before adding new thread.
     int lastWorkerCnt = thpl->threads->cnt;
@@ -381,7 +392,7 @@ static int ThplIncWorkerRealWork(void *args)
     if(lastWorkerCnt >= thpl->threads->cnt){retCode = -1;}
 
     // unlock the threadpool worker list.
-    pthread_mutex_unlock(&thpl->threadWorkerListKey);
+    cn_mutex_unlock(&thpl->threadWorkerListKey);
 
     // return execution status
     return retCode;
@@ -479,8 +490,8 @@ static int ThplDecWorkerRealWork(void *args)
     int i;
 
     // lock the worker list, and job queue
-    pthread_mutex_lock(&thpl->threadWorkerListKey);
-    pthread_mutex_lock(&thpl->jobsKey);
+    cn_mutex_lock(&thpl->threadWorkerListKey);
+    cn_mutex_lock(&thpl->jobsKey);
 
     // get the array of worker pointer.
     cn_threadpoolWorker **threads = *thpl->threads->b;
@@ -521,8 +532,8 @@ static int ThplDecWorkerRealWork(void *args)
         }
     }
     // unlock the worker list and jobs queue.
-    pthread_mutex_unlock(&thpl->jobsKey);
-    pthread_mutex_unlock(&thpl->threadWorkerListKey);
+    cn_mutex_unlock(&thpl->jobsKey);
+    cn_mutex_unlock(&thpl->threadWorkerListKey);
 
     // declare endTryAttempt Function trigger, defensively.
     bool *stopFlushing = malloc(sizeof(bool));
@@ -558,14 +569,14 @@ static int ThplDecWorkerRealWork(void *args)
         tryAttempt++;
 
         // lock the jobs queue
-        pthread_mutex_lock(&thpl->jobsKey);
+        cn_mutex_lock(&thpl->jobsKey);
         for(i = 0; i < (thpl->threads->cnt * 5); i++)
         {
             // signal worker that condition has changed
-            pthread_cond_signal(&thpl->jobsCond);
+            cn_cond_signal(&thpl->jobsCond);
         }
         // unlock the jobs queue
-        pthread_mutex_unlock(&thpl->jobsKey);
+        cn_mutex_unlock(&thpl->jobsKey);
 
         // let other thread run, wait for 20ms
         cn_sleep(20);
@@ -707,9 +718,9 @@ static int desThplRealWork(void *args)
     if(n != 0){return n;}
 
     // destroy all keys and condition
-    pthread_mutex_destroy(&thpl->jobsKey);
-    pthread_mutex_destroy(&thpl->threadWorkerListKey);
-    pthread_cond_destroy(&thpl->jobsCond);
+    cn_mutex_destroy(&thpl->jobsKey);
+    cn_mutex_destroy(&thpl->threadWorkerListKey);
+    cn_cond_destroy(&thpl->jobsCond);
 
     // Destroy type definition
     cn_typeDestroy(&thpl->t);

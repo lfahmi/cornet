@@ -67,10 +67,10 @@ static pthread_t schedTid, workTid;
 static pthread_attr_t schedThreadAttr;
 
 /// mutex lock for starter, scheduler and worker.
-static pthread_mutex_t starterKey, schedsKey, dueTimeKey;
+static cn_mutex_t starterKey, schedsKey, dueTimeKey;
 
 /// condition for starter and worker.
-static pthread_cond_t starterCond, dueTimeCond;
+static cn_cond_t starterCond, dueTimeCond;
 
 /// number of execution waiting scheduler start
 static int waitingStarted = 0;
@@ -119,15 +119,15 @@ int cn_doDelayedAction(cn_action *action, int CN_100_MILISECONDS timeout)
 static void *workerTask(void *args)
 {
     // interfacing object for operation
-    pthread_mutex_t *key = &dueTimeKey;
-    pthread_cond_t *cond = &dueTimeCond;
+    cn_mutex_t *key = &dueTimeKey;
+    cn_cond_t *cond = &dueTimeCond;
     #if CN_DEBUG_MODE_CNSCHED_H_LVL <= 2
     cn_log("worker thread %u created\n", (int)workTid);
     #endif // CN_DEBUG_MODE_CNSCHED_H_LVL
     while(cn_schedWorkerRunning == true)
     {
         // lock cn_queue dueTime access
-        pthread_mutex_lock(key);
+        cn_mutex_lock(key);
 
         // if cn_queue dueTime item count is zero then wait new item signal.
         if(dueTime->cnt == 0)
@@ -135,7 +135,7 @@ static void *workerTask(void *args)
             #if CN_DEBUG_MODE_CNSCHED_H_LVL == 1
             cn_log("worker thread %u entering wait\n", (int)workTid);
             #endif // CN_DEBUG_MODE_CNSCHED_H_LVL
-            pthread_cond_wait(cond, key);
+            cn_cond_wait(cond, key);
         }
         #if CN_DEBUG_MODE_CNSCHED_H_LVL == 1
         cn_log("worker thread %u got signal\n", (int)workTid);
@@ -144,13 +144,13 @@ static void *workerTask(void *args)
         // thread abortion, break work requesting loop and terminate thread.
         if(cn_schedWorkerRunning == false)
         {
-            pthread_mutex_unlock(key);
+            cn_mutex_unlock(key);
             break;
         }
 
         // Take work item then unlock cn_queue dueTime
         cn_sched *work = cn_queDe(dueTime);
-        pthread_mutex_unlock(key);
+        cn_mutex_unlock(key);
         if(work != NULL)
         {
             // Defensive check then do action
@@ -202,32 +202,32 @@ static void *workerTask(void *args)
 static void *schedulerTask(void *args)
 {
     // lock starter init schedule list, dueTime queue, mutexs cond and worker thread.
-    pthread_mutex_lock(&starterKey);
+    cn_mutex_lock(&starterKey);
     scheds = cn_makeList("cn_sched.scheduler.schedules", sizeof(cn_sched *), 20, true);
     if(scheds == NULL){goto doErr;}
     dueTime = cn_makeQue("cn_sched.scheduler.dueTime", sizeof(cn_action));
     if(dueTime == NULL){cn_desList(scheds); goto doErr;}
     cn_schedTaskRunning = true;
     cn_schedWorkerRunning = true;
-    pthread_mutex_init(&schedsKey, NULL);
-    pthread_mutex_init(&dueTimeKey, NULL);
-    pthread_cond_init(&dueTimeCond, NULL);
+    cn_mutex_init(&schedsKey, NULL);
+    cn_mutex_init(&dueTimeKey, NULL);
+    cn_cond_init(&dueTimeCond, NULL);
     pthread_create(&workTid, &schedThreadAttr, workerTask, NULL);
 
     int i;
 
     // schedule starter complete signal then release starter lock
-    pthread_mutex_unlock(&starterKey);
+    cn_mutex_unlock(&starterKey);
     while(waitingStarted > 0)
     {
         for(i = 0; i < waitingStarted; i++)
         {
-            pthread_mutex_lock(&starterKey);
-            pthread_cond_signal(&starterCond);
+            cn_mutex_lock(&starterKey);
+            cn_cond_signal(&starterCond);
             #if CN_DEBUG_MODE_CNSCHED_H_LVL == 1
             cn_log("schedule starter signaled\n");
             #endif // CN_DEBUG_MODE_CNSCHED_H_LVL
-            pthread_mutex_unlock(&starterKey);
+            cn_mutex_unlock(&starterKey);
         }
         cn_sleep(1);
     }
@@ -237,7 +237,7 @@ static void *schedulerTask(void *args)
     while(cn_schedTaskRunning)
     {
         // lock schedule list.
-        pthread_mutex_lock(&schedsKey);
+        cn_mutex_lock(&schedsKey);
 
         if(scheds->cnt > 0)
         {
@@ -267,7 +267,7 @@ static void *schedulerTask(void *args)
                     if(cn_timespecComp(&now, &sched->nextExecution) >= 0)
                     {
                         // lock dueTime
-                        pthread_mutex_lock(&dueTimeKey);
+                        cn_mutex_lock(&dueTimeKey);
                         #if CN_DEBUG_MODE_CNSCHED_H_LVL == 1
                         cn_log("scheduler due time %lu:%lu for %d before QUEUEEN cnt = %d\n", sched->nextExecution.tv_sec, sched->nextExecution.tv_nsec, sched, dueTime->cnt);
                         #endif // CN_DEBUG_MODE_CNSCHED_H_LVL
@@ -279,7 +279,7 @@ static void *schedulerTask(void *args)
                             sched->lastExecution = sched->nextExecution;
 
                             // always put signal in the end of operation
-                            pthread_cond_signal(&dueTimeCond);
+                            cn_cond_signal(&dueTimeCond);
                         }
                         #if CN_DEBUG_MODE_CNSCHED_H_LVL == 1
                         else
@@ -289,7 +289,7 @@ static void *schedulerTask(void *args)
                         #endif // CN_DEBUG_MODE_CNSCHED_H_LVL
 
                         // unlock dueTime
-                        pthread_mutex_unlock(&dueTimeKey);
+                        cn_mutex_unlock(&dueTimeKey);
                         #if CN_DEBUG_MODE_CNSCHED_H_LVL == 1
                         cn_log("scheduler due time %lu:%lu for %d dueTime cnt = %d\n", sched->nextExecution.tv_sec, sched->nextExecution.tv_nsec, sched, dueTime->cnt);
                         #endif // CN_DEBUG_MODE_CNSCHED_H_LVL
@@ -307,7 +307,7 @@ static void *schedulerTask(void *args)
                 else
                 {
                     // lock dueTime
-                    pthread_mutex_lock(&dueTimeKey);
+                    cn_mutex_lock(&dueTimeKey);
                     #if CN_DEBUG_MODE_CNSCHED_H_LVL == 1
                     cn_log("scheduler due time %lu:%lu for %d before QUEUEEN cnt = %d\n", sched->nextExecution.tv_sec, sched->nextExecution.tv_nsec, sched, dueTime->cnt);
                     #endif // CN_DEBUG_MODE_CNSCHED_H_LVL
@@ -319,7 +319,7 @@ static void *schedulerTask(void *args)
                         sched->lastExecution = sched->nextExecution;
 
                         // always put signal in the end of operation
-                        pthread_cond_signal(&dueTimeCond);
+                        cn_cond_signal(&dueTimeCond);
                     }
                     #if CN_DEBUG_MODE_CNSCHED_H_LVL == 1
                     else
@@ -329,7 +329,7 @@ static void *schedulerTask(void *args)
                     #endif // CN_DEBUG_MODE_CNSCHED_H_LVL
 
                     // unlock dueTime
-                    pthread_mutex_unlock(&dueTimeKey);
+                    cn_mutex_unlock(&dueTimeKey);
                     #if CN_DEBUG_MODE_CNSCHED_H_LVL == 1
                     cn_log("scheduler due time %lu:%lu for %d dueTime cnt = %d\n", sched->nextExecution.tv_sec, sched->nextExecution.tv_nsec, sched, dueTime->cnt);
                     #endif // CN_DEBUG_MODE_CNSCHED_H_LVL
@@ -339,7 +339,7 @@ static void *schedulerTask(void *args)
                 #endif // CN_DEBUG_MODE_CNSCHED_H_LVL
             }
         }
-        pthread_mutex_unlock(&schedsKey);
+        cn_mutex_unlock(&schedsKey);
         cn_sleep(100);
     }
     // The code would never actualy reach here because the scheduler wouldn't stop until app stop
@@ -347,9 +347,9 @@ static void *schedulerTask(void *args)
 
     cn_schedWorkerRunning = false;
 
-    pthread_mutex_lock(&dueTimeKey);
-    pthread_cond_signal(&dueTimeCond);
-    pthread_mutex_unlock(&dueTimeKey);
+    cn_mutex_lock(&dueTimeKey);
+    cn_cond_signal(&dueTimeCond);
+    cn_mutex_unlock(&dueTimeKey);
 
     void **retval = malloc(sizeof(void *));
     pthread_join(workTid, retval);
@@ -358,11 +358,11 @@ static void *schedulerTask(void *args)
     cn_desQue(dueTime, NULL);
     cn_listEmpty(scheds, cn_desSchedNumerableInterface);
     cn_desList(scheds);
-    pthread_cond_destroy(&starterCond);
-    pthread_cond_destroy(&dueTimeCond);
-    pthread_mutex_destroy(&starterKey);
-    pthread_mutex_destroy(&schedsKey);
-    pthread_mutex_destroy(&dueTimeKey);
+    cn_cond_destroy(&starterCond);
+    cn_cond_destroy(&dueTimeCond);
+    cn_mutex_destroy(&starterKey);
+    cn_mutex_destroy(&schedsKey);
+    cn_mutex_destroy(&dueTimeKey);
     pthread_attr_destroy(&schedThreadAttr);
     cn_log("scheduler stoped!\n");
     return NULL;
@@ -370,8 +370,8 @@ static void *schedulerTask(void *args)
     // error on starter
     doErr:
     cn_schedTaskRunning = false;
-    pthread_cond_signal(&starterCond);
-    pthread_mutex_unlock(&starterKey);
+    cn_cond_signal(&starterCond);
+    cn_mutex_unlock(&starterKey);
     return NULL;
 }
 
@@ -389,15 +389,15 @@ int cn_startScheduler()
         starter = true;
 
         // Initialize starter lock and condition.
-        pthread_mutex_init(&starterKey, NULL);
-        pthread_cond_init(&starterCond, NULL);
+        cn_mutex_init(&starterKey, NULL);
+        cn_cond_init(&starterCond, NULL);
         pthread_attr_init(&schedThreadAttr);
 
         // PREVENT VALGRIND POSIBLE LEAK WARNING
         //pthread_attr_setdetachstate(&schedThreadAttr, PTHREAD_CREATE_DETACHED);
 
         // go inside starter and lock.
-        pthread_mutex_lock(&starterKey);
+        cn_mutex_lock(&starterKey);
 
         // start Scheduler ThreadStart task thread.
         pthread_create(&schedTid, &schedThreadAttr, schedulerTask, NULL);
@@ -406,31 +406,31 @@ int cn_startScheduler()
         waitingStarted++;
 
         // wait for change condition signal.
-        pthread_cond_wait(&starterCond, &starterKey);
+        cn_cond_wait(&starterCond, &starterKey);
 
         // we are no longer waiting
         waitingStarted--;
 
         // go outside starting scheduler wait entry.
-        pthread_mutex_unlock(&starterKey);
+        cn_mutex_unlock(&starterKey);
     }
     else
     {
         // So, there is another start attempt happening
         // go inside waiting entry
-        pthread_mutex_lock(&starterKey);
+        cn_mutex_lock(&starterKey);
 
         // we just tell we are also waiting
         waitingStarted++;
 
         // wait for condition change signal
-        pthread_cond_wait(&starterCond, &starterKey);
+        cn_cond_wait(&starterCond, &starterKey);
 
         // we are no longer waiting
         waitingStarted--;
 
         // go outside starting scheduler wait entry.
-        pthread_mutex_unlock(&starterKey);
+        cn_mutex_unlock(&starterKey);
     }
 
     // if the scheduler is still not running then return failure
@@ -555,9 +555,9 @@ int cn_schedAdd(cn_sched *sched)
     }
 
     // add cn_sched inside scheduler lock
-    pthread_mutex_lock(&schedsKey);
+    cn_mutex_lock(&schedsKey);
     n = cn_listAppend(scheds, sched);
-    pthread_mutex_unlock(&schedsKey);
+    cn_mutex_unlock(&schedsKey);
 
     // return fine
     return n;
@@ -572,9 +572,9 @@ int cn_schedRemove(cn_sched *sched)
     int n;
 
     // remove cn_sched object inside scheduler lock.
-    pthread_mutex_lock(&schedsKey);
+    cn_mutex_lock(&schedsKey);
     n = cn_listRemoveAt(scheds, cn_listIndexOf(scheds, sched, 0));
-    pthread_mutex_unlock(&schedsKey);
+    cn_mutex_unlock(&schedsKey);
 
     // return status.
     return n;

@@ -1,11 +1,27 @@
 #ifndef _CNTYPE_H
 #define _CNTYPE_H 1
 #include <stdbool.h>
-#include <pthread.h>
 #include <signal.h>
 #include <stdlib.h>
 #include <string.h>
 #include <netinet/in.h>
+
+/* MUTEX */
+
+struct cn_mutex_t
+{
+    int mutex;
+};
+typedef struct cn_mutex_t cn_mutex_t;
+
+struct cn_cond_t
+{
+    int cond;
+    int nwaiters;
+};
+typedef struct cn_cond_t cn_cond_t;
+
+/* Function Pointers */
 
 /**
     * cn_syncFuncPTR type, a function pointer that take pointer
@@ -35,7 +51,7 @@ struct cn_type
     cn_type_space_tag_size_t bof;
     cn_type_id_t type_id;
     struct cn_list *objs;
-    pthread_mutex_t key;
+    cn_mutex_t key;
     cn_type_space_tag_size_t eof;
 };
 
@@ -97,6 +113,28 @@ typedef struct cn_action cn_action;
 #define CN_DEBUG_MODE_CNTYPE_H_LVL 1
 #undef CN_DEBUG_MODE_FREE
 #define CN_DEBUG_MODE_FREE 0
+
+/* MUTEX */
+
+extern int cn_mutex_init(struct cn_mutex_t *key, void *ignore);
+
+extern void cn_mutex_destroy(struct cn_mutex_t *key);
+
+extern void cn_mutex_lock(struct cn_mutex_t *key);
+
+extern void cn_mutex_unlock(struct cn_mutex_t *key);
+
+
+extern void cn_cond_init(struct cn_cond_t *key, void *ignore);
+
+extern void cn_cond_destroy(struct cn_cond_t *key);
+
+extern void cn_cond_lock(struct cn_cond_t *cond, void *ignore);
+
+extern void cn_cond_wait(struct cn_cond_t *cond, struct cn_mutex_t *key);
+
+extern void cn_cond_signal(struct cn_cond_t *cond);
+
 
 /* TYPE */
 

@@ -27,9 +27,9 @@ struct cn_threadpool
     uint64_t lastThreadId; // last used thread id
     uint32_t workingThread; // how much worker got job, important for threadpool auto enhance.
     cn_queue *actions; // Jobs queue
-    pthread_mutex_t jobsKey; // jobs queue access key
-    pthread_mutex_t threadWorkerListKey; // worker list access key
-    pthread_cond_t jobsCond; // jobs queue condition
+    cn_mutex_t jobsKey; // jobs queue access key
+    cn_mutex_t threadWorkerListKey; // worker list access key
+    cn_cond_t jobsCond; // jobs queue condition
     pthread_attr_t threadAttr; // worker thread attribute
 };
 

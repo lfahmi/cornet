@@ -25,7 +25,7 @@ void cn_typeInit(cn_type *target, cn_type_id_t type_id)
     // Set objects to null
     target->objs = NULL;
     // Init target key
-    pthread_mutex_init(&target->key, NULL);
+    cn_mutex_init(&target->key, NULL);
 }
 
 /**
@@ -45,8 +45,8 @@ int cn_typeAppendObject(void *target, void *object)
     cn_type *s = target, *o = object;
 
     // lock the target
-    pthread_mutex_lock(&s->key);
-    pthread_mutex_lock(&o->key);
+    cn_mutex_lock(&s->key);
+    cn_mutex_lock(&o->key);
 
     // declare execution status
     int n = 0;
@@ -66,7 +66,7 @@ int cn_typeAppendObject(void *target, void *object)
             /*  object object-list has less item, move them
                 to subject object-list */
             // lock the object object-list;
-            pthread_mutex_lock(&o->objs->key);
+            cn_mutex_lock(&o->objs->key);
 
             // take the items from object object-list
             cn_type **items = *o->objs->b;
@@ -82,18 +82,18 @@ int cn_typeAppendObject(void *target, void *object)
                     // item is cn_type, set item object-list by subject object-list
                     // lock the item, in any case there is someone using the item
                     // for cn_type operation. lets wait for it first
-                    pthread_mutex_lock(&item->key);
+                    cn_mutex_lock(&item->key);
                     item->objs = s->objs;
 
                     // then add the item to subject-object list
                     cn_listAppend(s->objs, item);
 
                     // unlock the item
-                    pthread_mutex_unlock(&item->key);
+                    cn_mutex_unlock(&item->key);
                 }
             }
             // unlock object object-list, then destrpy it.
-            pthread_mutex_unlock(&o->objs->key);
+            cn_mutex_unlock(&o->objs->key);
             cn_desList(o->objs);
         }
         else
@@ -101,7 +101,7 @@ int cn_typeAppendObject(void *target, void *object)
             /*  subject object-list has less item , move them
                 to object object-list */
             // lock the subject object-list;
-            pthread_mutex_lock(&s->objs->key);
+            cn_mutex_lock(&s->objs->key);
 
             // take the items from subject object-list
             cn_type **items = *s->objs->b;
@@ -117,18 +117,18 @@ int cn_typeAppendObject(void *target, void *object)
                     // item is cn_type, set item object-list by object object-list
                     // lock the item, in any case there is someone using the item
                     // for cn_type operation. lets wait for it first
-                    pthread_mutex_lock(&item->key);
+                    cn_mutex_lock(&item->key);
                     item->objs = o->objs;
 
                     // then add the item to object object-list
                     cn_listAppend(o->objs, item);
 
                     // unlock the item
-                    pthread_mutex_unlock(&item->key);
+                    cn_mutex_unlock(&item->key);
                 }
             }
             // unlock subject object-list, then destrpy it.
-            pthread_mutex_unlock(&s->objs->key);
+            cn_mutex_unlock(&s->objs->key);
             cn_desList(s->objs);
         }
     }
@@ -151,8 +151,8 @@ int cn_typeAppendObject(void *target, void *object)
         if(s->objs == NULL)
         {
             // error occured
-            pthread_mutex_unlock(&o->key);
-            pthread_mutex_unlock(&s->key);
+            cn_mutex_unlock(&o->key);
+            cn_mutex_unlock(&s->key);
             return -1;
         }
         // share the object-list to object
@@ -166,8 +166,8 @@ int cn_typeAppendObject(void *target, void *object)
     }
 
     // unlock target and return status.
-    pthread_mutex_unlock(&o->key);
-    pthread_mutex_unlock(&s->key);
+    cn_mutex_unlock(&o->key);
+    cn_mutex_unlock(&s->key);
     return n;
 }
 
@@ -191,14 +191,14 @@ void *cn_typeGet(void *target, cn_type_id_t whatType)
 
     // subject is not match, lets look for it inside list
     // lock the target
-    pthread_mutex_lock(&s->key);
+    cn_mutex_lock(&s->key);
 
     // lets check the list
     cn_list *objs = s->objs;
-    if(CN_TYPE_IS(objs, cn_list_type_id) == false){pthread_mutex_unlock(&s->key); return NULL;}
+    if(CN_TYPE_IS(objs, cn_list_type_id) == false){cn_mutex_unlock(&s->key); return NULL;}
 
     // lock the list access
-    pthread_mutex_lock(&objs->key);
+    cn_mutex_lock(&objs->key);
 
     // declare result pointer and iterator
     void *result;
@@ -219,8 +219,8 @@ void *cn_typeGet(void *target, cn_type_id_t whatType)
     }
 
     // unlock the target and list.
-    pthread_mutex_unlock(&objs->key);
-    pthread_mutex_unlock(&s->key);
+    cn_mutex_unlock(&objs->key);
+    cn_mutex_unlock(&s->key);
 
     // return result object.
     return result;
@@ -236,7 +236,7 @@ int cn_typeDestroy(cn_type *target)
     if(!CN_IS_TYPE(target)){return -1;}
 
     // lock the target
-    pthread_mutex_lock(&target->key);
+    cn_mutex_lock(&target->key);
 
     // declare status
     int n = 0;
@@ -255,7 +255,7 @@ int cn_typeDestroy(cn_type *target)
         }
     }
     // unlock, destroy key, return status.
-    pthread_mutex_unlock(&target->key);
-    pthread_mutex_destroy(&target->key);
+    cn_mutex_unlock(&target->key);
+    cn_mutex_destroy(&target->key);
     return n;
 }
