@@ -3,17 +3,17 @@
 #define UDP_SEND(asent, asocket, acn_buffer, asockaddr_in) \
     asent = sendto(asocket, acn_buffer->originalb, acn_buffer->originallength, 0, (const struct sockaddr *)&asockaddr_in, sizeof(struct sockaddr))
 
-char _s_connect[] = "CONNECT";
-char _s_sendTo[] = "SendTo";
-char _s_thePing[] = "ThePing";
-char _s_myId[] = "MyId";
+char _s_connect[] = "CONN";
+char _s_sendTo[] = "TRGT";
+char _s_thePing[] = "PING";
+char _s_myId[] = "MYID";
 char _s_nodePrefix[] = "client_";
 
 cn_list *nodes;
 
 typedef struct
 {
-    char cmd[20];
+    char cmd[4];
     char data[40];
 } packStruct;
 
@@ -23,9 +23,9 @@ int handler(void *arg)
     char fromaddr[CN_IP4STRLEN];
     fromaddr[0] = '\0';
     cn_inaddrToStr((char *)&fromaddr, pack->from.sin_addr.s_addr);
-    printf("Received data from %s:%d\n", fromaddr, pack->from.sin_port);
+    printf("Received data from %s:%d\n", fromaddr, ntohs(pack->from.sin_port));
     printf("data:%s\n", pack->buffer->b);
-    if(cn_bitIndexOf(pack->buffer->b, pack->buffer->length, _s_connect, sizeof(_s_connect)) == 0)
+    if(cn_bitIndexOf(pack->buffer->b, pack->buffer->length, _s_connect, sizeof(_s_connect) - 1) == 0)
     {
         cn_buffer *resbuf = cn_createBuffer(1, sizeof(packStruct));
         packStruct *resp = (void *)resbuf->originalb;
@@ -38,13 +38,14 @@ int handler(void *arg)
         srand(t);
         sprintf(resp->data + sizeof(_s_nodePrefix) - 1, "%u", rand());
         UDP_SEND(int n, pack->listener->sock, resbuf, pack->from);
+        printf("Send id %s as id for %s\n", resp->data, fromaddr);
 
         // Prepare SendTo command for nodes
         cn_bitzero(resp, sizeof(packStruct));
         cn_bitcp(resp->cmd, _s_sendTo, sizeof(_s_sendTo));
-        cn_inaddrToStr(resp->data ,pack->from.sin_addr.s_addr);
-        int ipstrlen = strlen(resp->cmd) - 1;
-        sprintf(resp->data + ipstrlen, ":%u|", pack->from.sin_port);
+        cn_bitcp(resp->data, fromaddr, strlen(fromaddr));
+        int ipstrlen = strlen(resp->data) - 1;
+        sprintf(resp->data + ipstrlen + 1, ":%u|", ntohs(pack->from.sin_port));
 
         // Send SendTo command to nodes
         cn_buffer *buff2 = cn_createBuffer(1, sizeof(packStruct));
@@ -59,8 +60,8 @@ int handler(void *arg)
             cn_bitzero(buff2b, sizeof(packStruct));
             cn_bitcp(buff2b->cmd, _s_sendTo, sizeof(_s_sendTo));
             cn_inaddrToStr(buff2b->data ,addrs->sin_addr.s_addr);
-            ipstrlen = strlen(buff2b->cmd) - 1;
-            sprintf(buff2b->data + ipstrlen, ":%u|", addrs->sin_port);
+            ipstrlen = strlen(buff2b->data) - 1;
+            sprintf(buff2b->data + ipstrlen + 1, ":%u|", ntohs(addrs->sin_port));
 
             UDP_SEND(n, pack->listener->sock, buff2, pack->from);
         }
@@ -69,15 +70,15 @@ int handler(void *arg)
         cn_bitzero(resp, sizeof(packStruct));
         cn_bitcp(resp->cmd, _s_sendTo, sizeof(_s_sendTo));
         cn_inaddrToStr(resp->data ,pack->listener->addr.sin_addr.s_addr);
-        ipstrlen = strlen(resp->cmd) - 1;
-        sprintf(resp->data + ipstrlen, ":%u|", pack->listener->addr.sin_port);
+        ipstrlen = strlen(resp->data) - 1;
+        sprintf(resp->data + ipstrlen + 1, ":%d|", ntohs(pack->listener->addr.sin_port));
         UDP_SEND(n, pack->listener->sock, resbuf, pack->from);
 
         cn_listAppend(nodes, &pack->from);
     }
-    else if(cn_bitIndexOf(pack->buffer->b, pack->buffer->length, _s_thePing, sizeof(_s_thePing)) == 0)
+    else if(cn_bitIndexOf(pack->buffer->b, pack->buffer->length, _s_thePing, sizeof(_s_thePing) - 1) == 0)
     {
-
+        printf("Got ping from %s\n", fromaddr);
     }
     cn_desBuffer(pack->buffer);
     free(pack);
@@ -93,8 +94,20 @@ int main(int argc, char *argv[])
       printf("ERROR, no port provided\n");
       exit(0);
     }
+    int port;
+    char *ipaddress;
+    if(argc == 2)
+    {
+        port = atoi(argv[1]);
+        ipaddress = "0.0.0.0";
+    }
+    else if(argc == 3)
+    {
+        port = atoi(argv[2]);
+        ipaddress = argv[1];
+    }
     cn_sock udpsock;
-    cn_startUDPListener(&udpsock, "0.0.0.0", atoi(argv[1]), 1024, handler);
+    cn_startUDPListener(&udpsock, ipaddress, port, 1024, handler);
     while(1)
     {
         cn_sleep(1000);
