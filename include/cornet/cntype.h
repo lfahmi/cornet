@@ -122,7 +122,10 @@ extern void cn_mutex_destroy(struct cn_mutex_t *key);
 
 extern void cn_mutex_lock(struct cn_mutex_t *key);
 
-extern void cn_mutex_unlock(struct cn_mutex_t *key);
+#define cn_mutex_unlock(cn_mutex) \
+    { \
+    struct cn_mutex_t *__macro_var_cn_mutex = cn_mutex; \
+    __sync_bool_compare_and_swap(&__macro_var_cn_mutex->mutex, 0, 1); }
 
 
 extern void cn_cond_init(struct cn_cond_t *key, void *ignore);

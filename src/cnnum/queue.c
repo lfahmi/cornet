@@ -88,7 +88,7 @@ int cn_queEn(cn_queue *tque, void *item)
     // Defensive code.
     if(tque == NULL || item == NULL) {return -1;}
 
-    // Allocate queue node object. Defensively.
+    // Allocate queue node object. Defensively. deallloc'd at cn_queDe
     struct cn_queueNode *tmpNode = malloc(sizeof(struct cn_queueNode));
     if(tmpNode == NULL){return -1;}
 
@@ -98,21 +98,21 @@ int cn_queEn(cn_queue *tque, void *item)
 
     // lock queue
     cn_mutex_lock(&tque->key);
-    if(tque->rearNode == NULL || tque->frontNode == NULL)
-    {
-        // this is sole item in queue. set queue count to 0 first
-        // set rear node and front node by current node.
-        tque->cnt = 0;
-        tque->rearNode = tmpNode;
-        tque->frontNode = tmpNode;
-    }
-    else
+    if(tque->rearNode != NULL || tque->frontNode != NULL)
     {
         // tell latest node that it next node is current node
         tque->rearNode->next = tmpNode;
 
         // now the latest node is current node
         tque->rearNode = tmpNode;
+    }
+    else
+    {
+        // this is sole item in queue. set queue count to 0 first
+        // set rear node and front node by current node.
+        tque->cnt = 0;
+        tque->rearNode = tmpNode;
+        tque->frontNode = tmpNode;
     }
 
     // finnaly increase queue count then unlock queue
@@ -136,33 +136,35 @@ void *cn_queDe(cn_queue *tque)
     // lock the queue
     cn_mutex_lock(&tque->key);
 
-    // Defensive code.
-    if(tque->cnt < 1){cn_mutex_unlock(&tque->key); return NULL;}
-    if(tque->frontNode == NULL){cn_mutex_unlock(&tque->key); return NULL;}
-
     // declare temporary node, set by front node of queue.
     struct cn_queueNode *tmpNode = tque->frontNode;
 
-    // result item set by tmp node item.
-    void *result = tmpNode->item;
-    if(tque->frontNode == tque->rearNode)
+    // Defensive code.
+    if(tmpNode == NULL){cn_mutex_unlock(&tque->key); return NULL;}
+
+    if(tque->frontNode != tque->rearNode)
+    {
+        // tmp node is used. now the front node
+        // must be the next node of the tmp node
+        tque->frontNode = tmpNode->next;
+    }
+    else
     {
         // seemslike tmp node was the only node in queue
         // set front and rear node to null
         tque->frontNode = NULL;
         tque->rearNode = NULL;
     }
-    else
-    {
-        // tmp node is used. now the front node
-        // must be the next node of the tmp node
-        tque->frontNode = tmpNode->next;
-    }
-    free(tmpNode);
 
-    // finnaly decrease queue count then we can unlock the queue
+    // finnaly decrease queue count and unlock the queue
     tque->cnt--;
     cn_mutex_unlock(&tque->key);
+
+    // result item set by tmp node item.
+    void *result = tmpNode->item;
+
+    // Free the queue node linker structure, allocated at cn_queEn
+    free(tmpNode);
 
     // return the result
     return result;

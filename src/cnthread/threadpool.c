@@ -231,6 +231,9 @@ cn_threadpool *cn_makeThpl(const char *refname, int threadCnt)
     // Set the reference name.
     result->refname = refname;
 
+    // Setdefult value
+    result->workingThread = 0;
+
     // Initialize keys and condition.
     cn_mutex_init(&result->jobsKey, NULL);
     cn_mutex_init(&result->threadWorkerListKey, NULL);

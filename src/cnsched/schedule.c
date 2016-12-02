@@ -126,16 +126,19 @@ static void *workerTask(void *args)
     #endif // CN_DEBUG_MODE_CNSCHED_H_LVL
     while(cn_schedWorkerRunning == true)
     {
-        // lock cn_queue dueTime access
-        cn_mutex_lock(key);
 
         // if cn_queue dueTime item count is zero then wait new item signal.
-        if(dueTime->cnt == 0)
+        if(__sync_fetch_and_add(&dueTime->cnt, 0) == 0)
         {
             #if CN_DEBUG_MODE_CNSCHED_H_LVL == 1
             cn_log("worker thread %u entering wait\n", (int)workTid);
             #endif // CN_DEBUG_MODE_CNSCHED_H_LVL
+            // lock cn_queue dueTime access
+            cn_mutex_lock(key);
+
             cn_cond_wait(cond, key);
+
+            cn_mutex_unlock(key);
         }
         #if CN_DEBUG_MODE_CNSCHED_H_LVL == 1
         cn_log("worker thread %u got signal\n", (int)workTid);
@@ -144,13 +147,11 @@ static void *workerTask(void *args)
         // thread abortion, break work requesting loop and terminate thread.
         if(cn_schedWorkerRunning == false)
         {
-            cn_mutex_unlock(key);
             break;
         }
 
         // Take work item then unlock cn_queue dueTime
         cn_sched *work = cn_queDe(dueTime);
-        cn_mutex_unlock(key);
         if(work != NULL)
         {
             // Defensive check then do action
@@ -266,8 +267,6 @@ static void *schedulerTask(void *args)
                     // now time is greater than or equal than next execution time.
                     if(cn_timespecComp(&now, &sched->nextExecution) >= 0)
                     {
-                        // lock dueTime
-                        cn_mutex_lock(&dueTimeKey);
                         #if CN_DEBUG_MODE_CNSCHED_H_LVL == 1
                         cn_log("scheduler due time %lu:%lu for %d before QUEUEEN cnt = %d\n", sched->nextExecution.tv_sec, sched->nextExecution.tv_nsec, sched, dueTime->cnt);
                         #endif // CN_DEBUG_MODE_CNSCHED_H_LVL
@@ -288,8 +287,6 @@ static void *schedulerTask(void *args)
                         }
                         #endif // CN_DEBUG_MODE_CNSCHED_H_LVL
 
-                        // unlock dueTime
-                        cn_mutex_unlock(&dueTimeKey);
                         #if CN_DEBUG_MODE_CNSCHED_H_LVL == 1
                         cn_log("scheduler due time %lu:%lu for %d dueTime cnt = %d\n", sched->nextExecution.tv_sec, sched->nextExecution.tv_nsec, sched, dueTime->cnt);
                         #endif // CN_DEBUG_MODE_CNSCHED_H_LVL
@@ -512,6 +509,9 @@ cn_sched *cn_makeSched(const char *refname, cn_action *action, int CN_100_MILISE
 int cn_desSched(cn_sched *sched)
 {
     int n = 0;
+    // if the sched is inside scheduler. we have to remove it first.
+    cn_schedRemove(sched);
+
     // call action destructor.
     cn_log("desched called for %s act %s\n", sched->refname, sched->action->refname);
     n = cn_desAction(sched->action);
@@ -573,7 +573,7 @@ int cn_schedRemove(cn_sched *sched)
 
     // remove cn_sched object inside scheduler lock.
     cn_mutex_lock(&schedsKey);
-    n = cn_listRemoveAt(scheds, cn_listIndexOf(scheds, sched, 0));
+    n = cn_listRemoveAt(scheds, cn_listIndexOf(scheds, sched, 1));
     cn_mutex_unlock(&schedsKey);
 
     // return status.

@@ -38,10 +38,10 @@ void cn_mutex_lock(struct cn_mutex_t *cn_mutex)
     }
 }
 
-void cn_mutex_unlock(struct cn_mutex_t *cn_mutex)
+/*void cn_mutex_unlock(struct cn_mutex_t *cn_mutex)
 {
     __sync_bool_compare_and_swap(&cn_mutex->mutex, 0, 1);
-}
+}*/
 
 
 void cn_cond_init(struct cn_cond_t *cond, void *ignore)
