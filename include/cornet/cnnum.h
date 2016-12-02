@@ -5,7 +5,6 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <netinet/in.h>
-#include <pthread.h>
 
 #define CN_NEVER_USE_THIS_WITH_LIST_APPENDADDRESS
 #define CN_NOT_USED_FOR_LIST_APPENDADDRESS
@@ -29,7 +28,7 @@ struct cn_list
     int cnt;
     int maxCnt;
     bool appendTheAddress;
-    pthread_mutex_t key;
+    cn_mutex_t key;
 };
 
 typedef struct cn_list cn_list;
@@ -54,7 +53,7 @@ struct cn_queue
     struct cn_queueNode *rearNode;
     int perSize;
     int cnt;
-    pthread_mutex_t key;
+    cn_mutex_t key;
     bool appendTheAddress;
 };
 
@@ -75,7 +74,7 @@ struct cn_dictionary4b
     cn_list *itemKey;
     cn_list *itemValue;
     int cnt;
-    pthread_mutex_t key;
+    cn_mutex_t key;
 };
 
 typedef struct cn_dictionary4b cn_dictionary4b;

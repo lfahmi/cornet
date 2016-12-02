@@ -37,7 +37,7 @@ cn_dictionary4b *cn_makeDict4b(const char *refname)
     result->cnt = 0;
 
     // initialize mutex key
-    pthread_mutex_init(&result->key, NULL);
+    cn_mutex_init(&result->key, NULL);
 
     // if type has not get it's id, get new id. initialize type structure for object
     if(cn_dictionary4b_type_id <= 0){cn_dictionary4b_type_id = cn_typeGetNewID();}
@@ -59,13 +59,13 @@ int cn_dict4bIndexOfKey(cn_dictionary4b *tdict, uint32_t key)
     if(tdict == NULL){return -1;}
 
     // lock the dictionary
-    pthread_mutex_lock(&tdict->key);
+    cn_mutex_lock(&tdict->key);
 
     // look for var key in key list
     int i = cn_listIndexOf(tdict->itemKey, &key, 1);
 
     // unlock the dictionary
-    pthread_mutex_unlock(&tdict->key);
+    cn_mutex_unlock(&tdict->key);
 
     // return the value from search function
     return i;
@@ -83,13 +83,13 @@ int cn_dict4bIndexOfValue(cn_dictionary4b *tdict, void *value)
     if(tdict == NULL || value == NULL){return -1;}
 
     // lock the dictionary access
-    pthread_mutex_lock(&tdict->key);
+    cn_mutex_lock(&tdict->key);
 
     // look for var value in value list
     int i = cn_listIndexOf(tdict->itemValue, value, 1);
 
     // unlock the dictionary access
-    pthread_mutex_unlock(&tdict->key);
+    cn_mutex_unlock(&tdict->key);
 
     // return the value from search funtion
     return i;
@@ -108,7 +108,7 @@ int cn_dict4bSet(cn_dictionary4b *tdict, uint32_t key, void *value)
     if(tdict == NULL || value == NULL){return -1;}
 
     // lock the dictionary access
-    pthread_mutex_lock(&tdict->key);
+    cn_mutex_lock(&tdict->key);
     int i = cn_listIndexOf(tdict->itemKey, &key, 1);
     if(i < 0)
     {
@@ -131,7 +131,7 @@ int cn_dict4bSet(cn_dictionary4b *tdict, uint32_t key, void *value)
     }
 
     // unlock dictionary access
-    pthread_mutex_unlock(&tdict->key);
+    cn_mutex_unlock(&tdict->key);
 
     // return execution status
     return n;
@@ -149,7 +149,7 @@ void *cn_dict4bGet(cn_dictionary4b *tdict, uint32_t key)
     if(tdict == NULL){return NULL;}
 
     // lock the dictionary access
-    pthread_mutex_lock(&tdict->key);
+    cn_mutex_lock(&tdict->key);
 
     // get the index of item key in key list
     int i = cn_listIndexOf(tdict->itemKey, &key, 1);
@@ -158,7 +158,7 @@ void *cn_dict4bGet(cn_dictionary4b *tdict, uint32_t key)
     void *result = cn_listGet(tdict->itemValue, i);
 
     // unlock the dictionary access
-    pthread_mutex_unlock(&tdict->key);
+    cn_mutex_unlock(&tdict->key);
 
     // return item value
     return result;
@@ -192,7 +192,7 @@ int cn_dict4bGetKey(cn_dictionary4b *tdict, void *value, uint32_t *out)
     if(tdict == NULL || value == NULL){return -1;}
 
     // lock the dictionary access
-    pthread_mutex_lock(&tdict->key);
+    cn_mutex_lock(&tdict->key);
 
     // get index of dictionary item that has matching value
     int i = cn_listIndexOf(tdict->itemValue, value, 1);
@@ -204,7 +204,7 @@ int cn_dict4bGetKey(cn_dictionary4b *tdict, void *value, uint32_t *out)
     *out = *((uint32_t *)cn_listGet(tdict->itemKey, i));
 
     // unlock the dictionary access
-    pthread_mutex_unlock(&tdict->key);
+    cn_mutex_unlock(&tdict->key);
 
     // report that we found the key
     return 0;
@@ -243,7 +243,7 @@ int cn_dict4bRemoveByKey(cn_dictionary4b *tdict, uint32_t key)
     if(tdict == NULL){return -1;}
 
     // lock the dictionary access
-    pthread_mutex_lock(&tdict->key);
+    cn_mutex_lock(&tdict->key);
 
     // get index of dictionary item to delete
     int i = cn_listIndexOf(tdict->itemKey, &key, 1);
@@ -253,7 +253,7 @@ int cn_dict4bRemoveByKey(cn_dictionary4b *tdict, uint32_t key)
     int n = dictRemoveByIndex(tdict, i);
 
     // unlock dictioanry access
-    pthread_mutex_unlock(&tdict->key);
+    cn_mutex_unlock(&tdict->key);
 
     // return execution status
     return n;
@@ -271,7 +271,7 @@ int cn_dict4bRemoveByValue(cn_dictionary4b *tdict, void *value)
     if(tdict == NULL || value == NULL){return -1;}
 
     // lock the dictionary access
-    pthread_mutex_lock(&tdict->key);
+    cn_mutex_lock(&tdict->key);
 
     // get the index of item to be removed
     int i = cn_listIndexOf(tdict->itemValue, value, 1);
@@ -281,7 +281,7 @@ int cn_dict4bRemoveByValue(cn_dictionary4b *tdict, void *value)
     int n = dictRemoveByIndex(tdict, i);
 
     // unlock the dictionary access
-    pthread_mutex_unlock(&tdict->key);
+    cn_mutex_unlock(&tdict->key);
 
     // return execution status
     return n;
@@ -299,13 +299,13 @@ int cn_dict4bRemoveByIndex(cn_dictionary4b *tdict, int indx)
     if(tdict == NULL || indx < 0){return -1;}
 
     // lockt the dictionary access
-    pthread_mutex_lock(&tdict->key);
+    cn_mutex_lock(&tdict->key);
 
     // remove the dictionary item by index
     int n = dictRemoveByIndex(tdict, indx);
 
     // unlock the dictionary access
-    pthread_mutex_unlock(&tdict->key);
+    cn_mutex_unlock(&tdict->key);
 
     // return execution status
     return n;
@@ -323,7 +323,7 @@ int cn_dict4bEmpty(cn_dictionary4b *tdict, cn_syncFuncPTR itemDestructor)
     if(tdict == NULL){return -1;}
 
     // lock the dictionary access
-    pthread_mutex_lock(&tdict->key);
+    cn_mutex_lock(&tdict->key);
 
     // remove all dictionary item key
     int n = cn_listEmpty(tdict->itemKey, NULL);
@@ -335,7 +335,7 @@ int cn_dict4bEmpty(cn_dictionary4b *tdict, cn_syncFuncPTR itemDestructor)
     tdict->cnt = 0;
 
     // unlock the dictioanry access
-    pthread_mutex_unlock(&tdict->key);
+    cn_mutex_unlock(&tdict->key);
 
     // return execution status
     return n;
@@ -352,7 +352,7 @@ int cn_desDict4b(cn_dictionary4b *tdict)
     if(tdict == NULL){return -1;}
 
     // lock the dictionary access
-    pthread_mutex_lock(&tdict->key);
+    cn_mutex_lock(&tdict->key);
 
     // destruct dictionary key list and value list
     int n = cn_desList(tdict->itemKey);
@@ -365,10 +365,10 @@ int cn_desDict4b(cn_dictionary4b *tdict)
     tdict->cnt = 0;
 
     // unlock the dictionary access
-    pthread_mutex_unlock(&tdict->key);
+    cn_mutex_unlock(&tdict->key);
 
     // destroy the dictionary key
-    pthread_mutex_destroy(&tdict->key);
+    cn_mutex_destroy(&tdict->key);
 
     // deallocate dictionary structure from memory
     free(tdict);

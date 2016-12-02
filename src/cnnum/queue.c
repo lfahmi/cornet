@@ -26,7 +26,7 @@ cn_queue *cn_makeQue(const char *refname, uint16_t perSize)
 
     /// initialize key for queue
     result->refname = refname;
-    pthread_mutex_init(&result->key, NULL);
+    cn_mutex_init(&result->key, NULL);
     result->cnt = 0;
     result->perSize = 0;
     result->frontNode = NULL;
@@ -67,7 +67,7 @@ int cn_desQue(cn_queue *tque, cn_syncFuncPTR itemDestructor)
     cn_typeDestroy(&tque->t);
 
     /// Destroy queue key
-    pthread_mutex_destroy(&tque->key);
+    cn_mutex_destroy(&tque->key);
     #if CN_DEBUG_MODE_FREE == 1 && CN_DEBUG_MODE_CNNUM_H_LVL > 0
     cn_log("[DEBUG][file:%s][func:%s][line:%d][%s:%s] dealloc attempt next.\n", __FILE__, __func__, __LINE__, tque->refname, CN_DEBUG_TYPENAME);
     #endif // CN_DEBUG_MODE
@@ -84,10 +84,11 @@ int cn_desQue(cn_queue *tque, cn_syncFuncPTR itemDestructor)
     */
 int cn_queEn(cn_queue *tque, void *item)
 {
+    __sync_synchronize();
     // Defensive code.
     if(tque == NULL || item == NULL) {return -1;}
 
-    // Allocate queue node object. Defensively.
+    // Allocate queue node object. Defensively. deallloc'd at cn_queDe
     struct cn_queueNode *tmpNode = malloc(sizeof(struct cn_queueNode));
     if(tmpNode == NULL){return -1;}
 
@@ -96,16 +97,8 @@ int cn_queEn(cn_queue *tque, void *item)
     tmpNode->next = NULL;
 
     // lock queue
-    pthread_mutex_lock(&tque->key);
-    if(tque->rearNode == NULL || tque->frontNode == NULL)
-    {
-        // this is sole item in queue. set queue count to 0 first
-        // set rear node and front node by current node.
-        tque->cnt = 0;
-        tque->rearNode = tmpNode;
-        tque->frontNode = tmpNode;
-    }
-    else
+    cn_mutex_lock(&tque->key);
+    if(tque->rearNode != NULL || tque->frontNode != NULL)
     {
         // tell latest node that it next node is current node
         tque->rearNode->next = tmpNode;
@@ -113,10 +106,18 @@ int cn_queEn(cn_queue *tque, void *item)
         // now the latest node is current node
         tque->rearNode = tmpNode;
     }
+    else
+    {
+        // this is sole item in queue. set queue count to 0 first
+        // set rear node and front node by current node.
+        tque->cnt = 0;
+        tque->rearNode = tmpNode;
+        tque->frontNode = tmpNode;
+    }
 
     // finnaly increase queue count then unlock queue
     tque->cnt++;
-    pthread_mutex_unlock(&tque->key);
+    cn_mutex_unlock(&tque->key);
 
     // operation finished fine
     return 0;
@@ -128,37 +129,42 @@ int cn_queEn(cn_queue *tque, void *item)
     */
 void *cn_queDe(cn_queue *tque)
 {
+    __sync_synchronize();
     // Defensive code.
     if(tque == NULL){return NULL;}
-    if(tque->cnt < 1){return NULL;}
-    if(tque->frontNode == NULL){return NULL;}
+
+    // lock the queue
+    cn_mutex_lock(&tque->key);
 
     // declare temporary node, set by front node of queue.
     struct cn_queueNode *tmpNode = tque->frontNode;
 
-    // result item set by tmp node item.
-    void *result = tmpNode->item;
+    // Defensive code.
+    if(tmpNode == NULL){cn_mutex_unlock(&tque->key); return NULL;}
 
-    // lock the queue
-    pthread_mutex_lock(&tque->key);
-    if(tque->frontNode == tque->rearNode)
+    if(tque->frontNode != tque->rearNode)
+    {
+        // tmp node is used. now the front node
+        // must be the next node of the tmp node
+        tque->frontNode = tmpNode->next;
+    }
+    else
     {
         // seemslike tmp node was the only node in queue
         // set front and rear node to null
         tque->frontNode = NULL;
         tque->rearNode = NULL;
     }
-    else
-    {
-        // tmp node is used. now the front node
-        // must be the next node of the tmp node
-        tque->frontNode = tmpNode->next;
-    }
-    free(tmpNode);
 
-    // finnaly decrease queue count then we can unlock the queue
+    // finnaly decrease queue count and unlock the queue
     tque->cnt--;
-    pthread_mutex_unlock(&tque->key);
+    cn_mutex_unlock(&tque->key);
+
+    // result item set by tmp node item.
+    void *result = tmpNode->item;
+
+    // Free the queue node linker structure, allocated at cn_queEn
+    free(tmpNode);
 
     // return the result
     return result;

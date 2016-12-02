@@ -50,7 +50,7 @@ cn_list *cn_makeList(const char *refname, int perSize, int firstMaxCnt, bool app
     }
 
     // Initialize list key, defensively.
-    if(pthread_mutex_init(&tlist->key, NULL) != 0)
+    if(cn_mutex_init(&tlist->key, NULL) != 0)
     {
         free(*tlist->b);
         free(tlist->b);
@@ -78,7 +78,7 @@ int cn_desList(cn_list *tlist)
     if(tlist == NULL) { return -1; }
 
     // lock the list
-    pthread_mutex_lock(&tlist->key);
+    cn_mutex_lock(&tlist->key);
 
     // Destroy object type definition
     cn_typeDestroy(&tlist->t);
@@ -93,10 +93,10 @@ int cn_desList(cn_list *tlist)
     free(tlist->b);
 
     // unlock list
-    pthread_mutex_unlock(&tlist->key);
+    cn_mutex_unlock(&tlist->key);
 
     // destroy lock key
-    pthread_mutex_destroy(&tlist->key);
+    cn_mutex_destroy(&tlist->key);
 
     // finnaly dealloc list structure
     free(tlist);
@@ -127,7 +127,7 @@ int cn_listAppend(cn_list *tlist, void *item)
     }
 
     // now lock the list
-    pthread_mutex_lock(&tlist->key);
+    cn_mutex_lock(&tlist->key);
     if(tlist->appendTheAddress == 1)
     {
         // seems like this is a list of pointer we must hold the address
@@ -144,7 +144,7 @@ int cn_listAppend(cn_list *tlist, void *item)
 
     // finnaly we can increase list count and unlock the list
     tlist->cnt++;
-    pthread_mutex_unlock(&tlist->key);
+    cn_mutex_unlock(&tlist->key);
 
     // finish fine.
     return 0;
@@ -153,7 +153,7 @@ int cn_listAppend(cn_list *tlist, void *item)
     unlock_reterr:
 
     // unlcok list then return failure
-    pthread_mutex_unlock(&tlist->key);
+    cn_mutex_unlock(&tlist->key);
     return -1;
 }
 
@@ -196,7 +196,7 @@ int cn_listSet(cn_list *tlist, int indx, void * item)
     int n = 0;
 
     // lock the list
-    pthread_mutex_lock(&tlist->key);
+    cn_mutex_lock(&tlist->key);
     if(tlist->appendTheAddress)
     {
         void **items = *tlist->b;
@@ -208,7 +208,7 @@ int cn_listSet(cn_list *tlist, int indx, void * item)
         n = cn_bitcp((*tlist->b + (indx * tlist->perSize)), item, tlist->perSize);
     }
     // unlock the list
-    pthread_mutex_unlock(&tlist->key);
+    cn_mutex_unlock(&tlist->key);
 
     // return status from bitcp
     return n;
@@ -273,13 +273,13 @@ int cn_listIndexOf(cn_list *tlist, void *item, int CN_NOT_USED_FOR_LIST_APPENDAD
     if(tlist == NULL || item == NULL || cnt < 0){return -1;}
 
     // lock the list
-    pthread_mutex_lock(&tlist->key);
+    cn_mutex_lock(&tlist->key);
 
     // Real function.
     int n =listIndexOf(tlist, item, cnt);
 
     // unlock the list
-    pthread_mutex_unlock(&tlist->key);
+    cn_mutex_unlock(&tlist->key);
 
     return n;
 }
@@ -373,12 +373,12 @@ int cn_listSplice(cn_list *tlist, int startIndx, int remlen, cn_syncFuncPTR item
     if(tlist == NULL || startIndx < 0 || remlen < 0){return -1;}
 
     // lock the list
-    pthread_mutex_lock(&tlist->key);
+    cn_mutex_lock(&tlist->key);
 
     int n = listSplice(tlist, startIndx, remlen, itemDestructor);
 
     // unlock list
-    pthread_mutex_unlock(&tlist->key);
+    cn_mutex_unlock(&tlist->key);
 
     return n;
 }
@@ -420,7 +420,7 @@ int cn_listRemove(cn_list *tlist, void *item, int CN_NOT_USED_FOR_LIST_APPENDADD
     else{if(cnt < 0){return -1;}}
 
     // Lock the list
-    pthread_mutex_lock(&tlist->key);
+    cn_mutex_lock(&tlist->key);
 
     // Find index of items
     int indx = listIndexOf(tlist, item, cnt);
@@ -429,7 +429,7 @@ int cn_listRemove(cn_list *tlist, void *item, int CN_NOT_USED_FOR_LIST_APPENDADD
     int n = listSplice(tlist, indx, cnt, itemDestructor);
 
     // Unlock the list
-    pthread_mutex_unlock(&tlist->key);
+    cn_mutex_unlock(&tlist->key);
 
     // Return status
     return n;
@@ -487,13 +487,13 @@ int cn_listExpand(cn_list *tlist, int cnt)
     if(tlist == NULL || cnt < 0){return -1;}
 
     // Lock the list
-    pthread_mutex_lock(&tlist->key);
+    cn_mutex_lock(&tlist->key);
 
     // Real function
     int n = listExpand(tlist, cnt);
 
     // Unlock the list
-    pthread_mutex_unlock(&tlist->key);
+    cn_mutex_unlock(&tlist->key);
 
     // return status
     return n;
@@ -628,13 +628,13 @@ int cn_listInsertAt(cn_list *tlist, int indx, void *items, int cnt)
     if(tlist == NULL || items == NULL || indx < 0 || indx > tlist->cnt || cnt < 1) {return -1;}
 
     // Lock the list
-    pthread_mutex_lock(&tlist->key);
+    cn_mutex_lock(&tlist->key);
 
     // Real function
     int n = listInsertAt(tlist, indx, items, cnt);
 
     // Unlock the list
-    pthread_mutex_unlock(&tlist->key);
+    cn_mutex_unlock(&tlist->key);
 
     // Return status
     return n;
