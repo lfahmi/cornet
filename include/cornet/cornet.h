@@ -37,7 +37,7 @@ struct cn_buffer
     uint16_t length;
     uint16_t originallength;
     uint16_t capacity;
-    pthread_mutex_t key;
+    cn_mutex_t key;
 };
 typedef struct cn_buffer cn_buffer;
 

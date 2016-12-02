@@ -26,8 +26,8 @@ struct cn_tryConnectObj
 };
 typedef struct cn_tryConnectObj cn_tryConnectObj;
 
-#define ILock(key) pthread_mutex_lock(key)
-#define IUnlock(key) pthread_mutex_unlock(key)
+#define ILock(key) cn_mutex_lock(key)
+#define IUnlock(key) cn_mutex_unlock(key)
 
 #define PBOF 170
 #define PEOF 85
